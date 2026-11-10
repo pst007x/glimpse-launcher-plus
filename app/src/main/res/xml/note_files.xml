@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the notes' own pictures, and the bug log when the person emails it, can be shared; nothing else. -->
+<paths>
+    <files-path name="notes" path="notes/" />
+    <files-path name="logs" path="logs/" />
+</paths>

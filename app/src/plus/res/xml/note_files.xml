@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glimpse Launcher Plus: the notes' own pictures and the bug log, as in the Play edition, and a file found by the
+     whole-phone search, handed one at a time to the app that opens it. -->
+<paths>
+    <files-path name="notes" path="notes/" />
+    <files-path name="logs" path="logs/" />
+    <external-path name="phone" path="." />
+</paths>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon version (Android 13+): the eye's outline and the four tiles in one colour; the phone tints it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#000000" android:fillType="evenOdd"
+        android:pathData="M24,54 Q54,16 84,54 Q54,92 24,54 Z M30,54 Q54,23.6 78,54 Q54,84.4 30,54 Z" />
+    <path android:fillColor="#000000"
+        android:pathData="M45,45.05h8.15v8.15h-8.15z M54.8,45.05h8.15v8.15h-8.15z M45,54.8h8.15v8.15h-8.15z M54.8,54.8h8.15v8.15h-8.15z" />
+</vector>

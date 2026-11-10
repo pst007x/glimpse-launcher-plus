@@ -1,0 +1,16 @@
+local.properties
+.gradle/
+build/
+*.jks
+*.keystore
+.idea/
+*.iml
+/captures
+.externalNativeBuild
+.cxx
+/release/
+.superpowers/
+release-*/
+website-upload/
+.kotlin/
+.wrangler/

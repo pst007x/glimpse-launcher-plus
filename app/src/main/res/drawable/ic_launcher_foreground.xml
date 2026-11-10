@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glimpse Launcher icon: a bold white eye whose pupil is four coloured app tiles. Kept inside the adaptive-icon safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- the eye -->
+    <path android:fillColor="#FFFFFF" android:pathData="M24,54 Q54,16 84,54 Q54,92 24,54 Z" />
+    <!-- inside the eye -->
+    <path android:fillColor="#0A1E5A" android:pathData="M30,54 Q54,23.6 78,54 Q54,84.4 30,54 Z" />
+    <!-- the pupil -->
+    <path android:fillColor="#FFFFFF" android:pathData="M54,39.4 A14.6,14.6 0 1,1 53.99,39.4 Z" />
+    <!-- four app tiles: cyan, pink, yellow, green -->
+    <path android:fillColor="#00BEFF" android:pathData="M46.6,45.05 h5 a1.6,1.6 0 0 1 1.6,1.6 v5 a1.6,1.6 0 0 1 -1.6,1.6 h-5 a1.6,1.6 0 0 1 -1.6,-1.6 v-5 a1.6,1.6 0 0 1 1.6,-1.6 z" />
+    <path android:fillColor="#FF40A0" android:pathData="M56.4,45.05 h5 a1.6,1.6 0 0 1 1.6,1.6 v5 a1.6,1.6 0 0 1 -1.6,1.6 h-5 a1.6,1.6 0 0 1 -1.6,-1.6 v-5 a1.6,1.6 0 0 1 1.6,-1.6 z" />
+    <path android:fillColor="#FFC400" android:pathData="M46.6,54.8 h5 a1.6,1.6 0 0 1 1.6,1.6 v5 a1.6,1.6 0 0 1 -1.6,1.6 h-5 a1.6,1.6 0 0 1 -1.6,-1.6 v-5 a1.6,1.6 0 0 1 1.6,-1.6 z" />
+    <path android:fillColor="#00D68F" android:pathData="M56.4,54.8 h5 a1.6,1.6 0 0 1 1.6,1.6 v5 a1.6,1.6 0 0 1 -1.6,1.6 h-5 a1.6,1.6 0 0 1 -1.6,-1.6 v-5 a1.6,1.6 0 0 1 1.6,-1.6 z" />
+</vector>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Glimpse Launcher Plus only: to search the names of every file and folder on the phone (never their contents,
+         never sent anywhere). Android 11 and later ask through their All files access page; 8 to 10 the usual question. -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <!-- So an .apk found by Search can be opened: Android first shows its own Allow from this source switch, and asks
+         before every install. Glimpse Launcher Plus never installs anything by itself. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Android 10 keeps apps to their own files unless they ask for the old storage rules; without this, file access
+         there would find nothing. Android 11 and later ignore it and use All files access instead. -->
+    <application android:requestLegacyExternalStorage="true" />
+</manifest>
