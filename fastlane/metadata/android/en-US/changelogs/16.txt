@@ -1,0 +1,1 @@
+Builds can now be checked against the source (reproducible builds). Ready for F-Droid.

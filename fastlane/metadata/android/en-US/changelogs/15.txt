@@ -1,0 +1,1 @@
+Search results with many matches show 50 more at a time (Load more). Less memory for the whole-phone search, which also frees its list 10 minutes after Search closes. An .apk found by Search can be opened (Android asks first). Clearer wording for Android 8 to 10, and the "+" badge now sits inside the icon.

@@ -44,6 +44,11 @@ changes until it worked the way I wanted. Claude wrote most of the code. I see i
 photo filter or a compiler: it let me build apps I couldn't have written on my own. Commits made with
 it carry a `Co-Authored-By: Claude` line.
 
+## Licence
+
+Copyright © 2026 Glimpse Media (Salvatore Turone). Licensed under the GNU General Public License, version 3 (see
+`LICENSE`).
+
 ## Contact
 
 support@glimpse-media.com

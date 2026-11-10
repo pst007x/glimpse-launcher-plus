@@ -14,8 +14,8 @@ android {
         applicationId = "com.glimpsemedia.glimpselauncher"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.0.14"
+        versionCode = 16
+        versionName = "1.0.15"
         manifestPlaceholders["appLabel"] = "Glimpse Launcher"
     }
 
@@ -57,7 +57,8 @@ android {
         create("plus") {
             dimension = "edition"
             applicationId = "com.glimpsemedia.glimpselauncherplus"
-            signingConfigs.findByName("plus")?.let { signingConfig = it }
+            // -PunsignedPlus builds it without the key, as F-Droid does, to check the two match.
+            if (!project.hasProperty("unsignedPlus")) signingConfigs.findByName("plus")?.let { signingConfig = it }
             manifestPlaceholders["appLabel"] = "Glimpse Launcher Plus"
             buildConfigField("boolean", "PLUS", "true")
         }
@@ -72,6 +73,9 @@ android {
             matchingFallbacks += "debug"
         }
         release {
+            // No git commit inside the APK: a build from the public GitHub copy then matches one from this project,
+            // as F-Droid's reproducible-build check needs.
+            vcsInfo { include = false }
             // For trying the release build next to the real one: -PidSuffix=.rctest
             (project.findProperty("idSuffix") as String?)?.let { applicationIdSuffix = it }
             isMinifyEnabled = true
@@ -89,6 +93,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    // No Google-encrypted list of the app's libraries in the APK or bundle: F-Droid flags it, and it only feeds
+    // Play Console's SDK notices. (Gradle offers this for the whole project, so the Play edition has it off too.)
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 }
 

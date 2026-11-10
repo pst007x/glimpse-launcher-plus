@@ -65,6 +65,22 @@ Checks before uploading:
 
 `docs/release/graphics/make_graphics.py` (run from that folder) rebuilds the Play icon and feature graphic from the screenshots.
 
+## Releasing Glimpse Launcher Plus (GitHub, and F-Droid later)
+
+Plus is built from the public GitHub copy, so the APK we publish is exactly what F-Droid builds from the same tag
+(reproducible builds: F-Droid then ships our APK, signed with the Plus key).
+
+1. Raise `versionCode`/`versionName`, write `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (500
+   characters at most), commit.
+2. `docs/release/plus/export_github.sh` makes the GitHub copy's commit and tag `v<versionName>` (it refuses a tag that
+   exists, binaries other than the Gradle wrapper and pictures, and listing files that break F-Droid's limits).
+3. `docs/release/plus/build_plus_release.sh` builds the APK twice in the GitHub copy and writes
+   `release-<v>/glimpse-launcher-plus-<v>.apk` and `.sha256` only when both builds are the same, clean and Plus-signed.
+4. You: `git -C ~/glimpse-launcher-plus-github push --follow-tags`, then the GitHub release with the APK and its
+   `.sha256` (the APK's file name must stay `glimpse-launcher-plus-<v>.apk`: F-Droid looks for it there).
+
+`docs/release/plus/test_release_scripts.sh --build` tests these scripts in a scratch copy.
+
 ## Putting it on Google Play (done by you in Play Console)
 
 1. Create app: name "Glimpse Launcher", English (United Kingdom), App, Free.
