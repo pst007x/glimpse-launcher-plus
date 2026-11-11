@@ -390,10 +390,12 @@ private fun NotePictures(
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     big?.let { androidx.compose.foundation.Image(it, contentDescription = "The picture", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
                 }
-                Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BigButton("Delete", { asking = true }, Modifier.weight(1f))
-                    BigButton("Share", { onPictureAction(PictureRequest.SharePicture(name)) }, Modifier.weight(1f))
-                    BigButton("Close", { viewing = null }, Modifier.weight(1f), primary = true)
+                ButtonRow(3, minButtonWidth(listOf("Delete", "Share", "Close"), 20f).dp, Modifier.navigationBarsPadding().padding(12.dp)) { i, m ->
+                    when (i) {
+                        0 -> BigButton("Delete", { asking = true }, m)
+                        1 -> BigButton("Share", { onPictureAction(PictureRequest.SharePicture(name)) }, m)
+                        else -> BigButton("Close", { viewing = null }, m, primary = true)
+                    }
                 }
             }
         }

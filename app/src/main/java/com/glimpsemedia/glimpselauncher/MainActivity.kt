@@ -94,6 +94,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var widgets: WidgetSupport
     // Made with the activity: its folder picker has to be registered before the activity starts.
     private val search = com.glimpsemedia.glimpselauncher.data.SearchSupport(this)
+    /** App icons from icon packs, kept ready. */
+    val icons by lazy {
+        // Knows the chosen pack from the start, so icons are not first drawn without it.
+        com.glimpsemedia.glimpselauncher.data.IconStore(this).also { if (::state.isInitialized) it.setPack(state.settings.iconPack) }
+    }
 
     /** Locks again when the screen goes off, so it is never left open by accident. */
     private val screenOff = object : BroadcastReceiver() {
@@ -155,6 +160,23 @@ class MainActivity : ComponentActivity() {
                 TextModeSwitchWidget.refresh(this@MainActivity, s)
             }
             GlimpseTheme {
+                // App icons come from the chosen icon pack (or none), the same everywhere.
+                androidx.compose.runtime.LaunchedEffect(s.iconPack) { icons.setPack(s.iconPack); icons.tidyCache() }
+                // At midnight calendar icons turn to the new day.
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    while (true) {
+                        val now = java.util.Calendar.getInstance()
+                        val next = (now.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_MONTH, 1); set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 5) }
+                        kotlinx.coroutines.delay(next.timeInMillis - now.timeInMillis)
+                        icons.checkDay()
+                    }
+                }
+                // An app uninstalled: its own icon choice (and picture) goes too.
+                androidx.compose.runtime.LaunchedEffect(state.apps) { if (state.apps.isNotEmpty()) icons.prune(state.apps.keys) }
+                androidx.compose.runtime.CompositionLocalProvider(
+                    com.glimpsemedia.glimpselauncher.ui.LocalIconStore provides icons,
+                    com.glimpsemedia.glimpselauncher.ui.LocalMenuTextScale provides com.glimpsemedia.glimpselauncher.ui.menuTextScale(s.menuTextStep),
+                ) {
                 HomeScreen(
                     state = state,
                     onLaunch = repository::launch,
@@ -195,6 +217,7 @@ class MainActivity : ComponentActivity() {
                     onClearBugLog = ::clearBugLog,
                     onSystemSettings = { try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {} },
                 )
+            }
             }
         }
     }
@@ -360,6 +383,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // A new day: calendar icons from the icon pack show today's date.
+        icons.checkDay()
+        // A pack's own Apply, agreed to in ApplyIconPackActivity: used only if it is an installed icon pack.
+        com.glimpsemedia.glimpselauncher.data.PendingIconPack.take { p -> icons.packs.installed().any { it.pkg == p } }
+            ?.let { state.change(state.settings.copy(iconPack = it)) }
         // Back from Android's All files access page (Plus): read its answer again.
         search.allFiles.onResume()
         state.isDefaultHome = isDefaultHome()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.alpha
@@ -17,6 +18,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -209,5 +211,42 @@ fun FolderPictureChoices(chosen: Int, color: Color, enabled: Boolean, onPick: (I
                 }
             }
         }
+    }
+}
+
+/** What TalkBack adds after a badged folder's name. */
+fun folderBadgeSpoken(icon: com.glimpsemedia.glimpselauncher.model.TextIcon): String = "folder, ${icon.name}"
+
+/**
+ * A folder's badge over its picture: a circle at the bottom right, 38 % of the picture's width, in a darker shade of
+ * the folder's colour, with the mono icon inside in white or near-black, whichever reads on it.
+ */
+@Composable
+fun FolderBadge(icon: com.glimpsemedia.glimpselauncher.model.TextIcon, folderColor: Color, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
+        val d = maxWidth * 0.38f
+        val circle = Color(shaded(folderColor.toArgb(), -45))
+        androidx.compose.foundation.layout.Box(
+            Modifier.align(androidx.compose.ui.Alignment.BottomEnd).size(d).clip(androidx.compose.foundation.shape.CircleShape).background(circle),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) {
+            androidx.compose.material3.Icon(icon.vector, contentDescription = null, tint = readableOn(circle), modifier = Modifier.size(d * 0.6f))
+        }
+    }
+}
+
+/** A folder's colour badge: the subject's Glimpse Colour tile at the bottom right, the same size as a mono badge. */
+@Composable
+fun ColourFolderBadge(subject: com.glimpsemedia.glimpselauncher.model.TextIcon, modifier: Modifier = Modifier) {
+    val name = com.glimpsemedia.glimpselauncher.model.GC_BADGES[subject.name] ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    @Suppress("DiscouragedApi")
+    val id = remember(name) { context.resources.getIdentifier("gc_$name", "drawable", context.packageName) }
+    if (id == 0) return
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
+        androidx.compose.foundation.Image(
+            androidx.compose.ui.res.painterResource(id), contentDescription = null,
+            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).size(maxWidth * 0.42f),
+        )
     }
 }

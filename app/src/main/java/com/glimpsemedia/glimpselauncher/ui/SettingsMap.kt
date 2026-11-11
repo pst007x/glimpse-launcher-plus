@@ -51,9 +51,11 @@ object SettingsMap {
         )),
         SettingsSection("menus", "Menus and highlight", "menus", listOf(
             b(null, "Menus and standard colours", "Highlight colour (selections and touched icons)"),
+            b("Text", "Menu text size"),
         )),
         SettingsSection("tiles", "Tiles and icons", "tiles", listOf(
             b("Shapes", "Shapes preview", "Tile shape", "Icon background shape", "Empty place shape"),
+            b("Icon pack", "Icon pack"),
             b("Colours", "Tile colour", "Icon background colour", "Text on the tiles and the bar"),
             b("Names", "Names on the tiles", "Names in the bottom bar"),
             b("Sizes", "Name size on the tiles", "Icon size on the tiles"),

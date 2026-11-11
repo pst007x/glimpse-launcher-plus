@@ -109,4 +109,9 @@ class SettingsMapTest {
         assertEquals(listOf("All files and folders", "Add folder location(s)", "Add search engine(s)"), searchSectionRows(plus = true).first { it.heading == "What is searched" }.rows)
         assertEquals(listOf("Add folder location(s)", "Add search engine(s)"), searchSectionRows(plus = false).first { it.heading == "What is searched" }.rows)
     }
+
+    @Test fun iconPackIsFound() {
+        assertTrue(SettingsMap.search("icon pack").any { it.label == "Icon pack" })
+        assertEquals(listOf("Icon pack"), SettingsMap.sections.getValue("tiles").blocks.first { it.heading == "Icon pack" }.rows)
+    }
 }

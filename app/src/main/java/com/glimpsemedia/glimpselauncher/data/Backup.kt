@@ -63,7 +63,8 @@ object Backup {
     const val MAX_TOTAL = 500L shl 20
     private const val MAX_SMALL = 1L shl 20       // manifest.json and settings.json
     private val FILES = setOf("layout.json", "textmode.json", "notes.json", "themes.json")
-    private val FOLDERS = listOf("notes/", "wallpapers/")
+    // icons/picked/: pictures chosen as icons and saved copies of per-app pack icons (icons/pack/ is made again).
+    private val FOLDERS = listOf("notes/", "wallpapers/", "icons/picked/")
     // Folder locations are Android grants for this phone and this install: they cannot be restored.
     private val LEFT_OUT = setOf("welcomePage", "lastBackupMillis", "searchFolderList")
 

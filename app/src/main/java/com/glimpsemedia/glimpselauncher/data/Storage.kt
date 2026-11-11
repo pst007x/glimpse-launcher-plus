@@ -106,12 +106,16 @@ data class Settings(
     /** The names and icons on the tiles, −2…2 steps of 10% from the grid's own size (0 as it is). */
     val tileNameStep: Int = 0,
     val tileIconStep: Int = 0,
+    /** Text size in menus and pop-ups: a step of [MENU_TEXT_STEPS], 0 the usual (90% of the phone's text size). */
+    val menuTextStep: Int = 0,
     /** Quick unlock: the padlock opens after a 1-second hold instead of 3. */
     val quickUnlock: Boolean = false,
     /** How folders look on the screens: 0 as they always did (their apps' icons), 1 a folder icon in [folderColor]. */
     val folderStyle: Int = 0,
     /** Which of the [FOLDER_PICTURES] folder pictures the folder-icon look draws: 1 to 6 (3 is closest to the first one). */
     val folderIcon: Int = 3,
+    /** The icon pack for all apps: an installed pack's package name, or "" for none. */
+    val iconPack: String = "",
     /** The colour all folders share in the folder-icon look (0 the standard folder yellow), and darker or lighter. */
     val folderColor: Int = 0,
     val folderShade: Int = 0,
@@ -224,9 +228,11 @@ class SettingsStore(context: Context) {
         tileNameStep = if (prefs.contains("tileNameStep")) stepFromStored(prefs.getInt("tileNameStep", 0), NAME_STEPS)
             else nameStepFromOld(prefs.getInt("tileNameSize", 1).coerceIn(0, 2)),
         tileIconStep = stepFromStored(prefs.getInt("tileIconStep", 0), ICON_STEPS),
+        menuTextStep = stepFromStored(prefs.getInt("menuTextStep", 0), MENU_TEXT_STEPS),
         quickUnlock = prefs.getBoolean("quickUnlock", false),
         folderStyle = folderStyleFromStored(prefs.getInt("folderStyle", 0)),
         folderIcon = folderIconFromStored(prefs.getInt("folderIcon", 3)),
+        iconPack = prefs.getString("iconPack", "") ?: "",
         folderColor = prefs.getInt("folderColor", 0),
         folderShade = shadeOf("folderShade"),
         showTiles = prefs.getBoolean("showTiles", true),
@@ -254,7 +260,7 @@ class SettingsStore(context: Context) {
             .putInt("tileShade", s.tileShade).putInt("iconShade", s.iconShade).putInt("barShade", s.barShade)
             .putInt("clockShade", s.clockShade).putInt("clockBackShade", s.clockBackShade).putInt("highlightShade", s.highlightShade)
             .putBoolean("textMode", s.textMode).putBoolean("textClock", s.textClock).putBoolean("textListRight", s.textListRight)
-            .putInt("textStep", s.textStep).putInt("tileNameStep", s.tileNameStep).putInt("tileIconStep", s.tileIconStep).putBoolean("quickUnlock", s.quickUnlock).putInt("folderStyle", s.folderStyle).putInt("folderIcon", s.folderIcon).putInt("folderColor", s.folderColor).putInt("folderShade", s.folderShade).putBoolean("showTiles", s.showTiles).putInt("iconShape", s.iconShape).putInt("tileShape", s.tileShape).putInt("slotShape", s.slotShape).putLong("lastBackupMillis", s.lastBackupMillis).putBoolean("showBarText", s.showBarText)
+            .putInt("textStep", s.textStep).putInt("tileNameStep", s.tileNameStep).putInt("tileIconStep", s.tileIconStep).putInt("menuTextStep", s.menuTextStep).putBoolean("quickUnlock", s.quickUnlock).putInt("folderStyle", s.folderStyle).putInt("folderIcon", s.folderIcon).putString("iconPack", s.iconPack).putInt("folderColor", s.folderColor).putInt("folderShade", s.folderShade).putBoolean("showTiles", s.showTiles).putInt("iconShape", s.iconShape).putInt("tileShape", s.tileShape).putInt("slotShape", s.slotShape).putLong("lastBackupMillis", s.lastBackupMillis).putBoolean("showBarText", s.showBarText)
             .putInt("textClockSize", s.textClockSize).putBoolean("bugLog", s.bugLog).putBoolean("showBar", s.showBar)
             .putInt("barSlots", s.barSlots).putInt("textClockAlign", s.textClockAlign)
             .putInt("tileTextColor", s.tileTextColor).putInt("tileTextShade", s.tileTextShade)
@@ -319,6 +325,8 @@ fun shapeFromStored(v: Int): Int = if (v == SHAPE_CIRCLE) SHAPE_CIRCLE else SHAP
 val NAME_STEPS = -2..3
 val TEXT_STEPS = -2..3
 val ICON_STEPS = -2..5
+/** Menu text: one step smaller than usual, up to four larger (see menuTextScale). */
+val MENU_TEXT_STEPS = -1..4
 
 /** A stored size step, kept in its slider's [range] (a damaged or future value never goes past the ends). */
 fun stepFromStored(v: Int, range: IntRange): Int = v.coerceIn(range.first, range.last)

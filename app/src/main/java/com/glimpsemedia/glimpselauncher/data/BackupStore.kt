@@ -16,7 +16,7 @@ enum class RestoreResult { Done, NoRoom, Failed }
  */
 class BackupStore(private val dir: File) {
     private val files = listOf("layout.json", "textmode.json", "notes.json", "themes.json")
-    private val folders = listOf("notes", "wallpapers")
+    private val folders = listOf("notes", "wallpapers", "icons/picked")
     private val safe get() = File(dir, "before-restore")
     private val mark get() = File(safe, "in-progress")
 

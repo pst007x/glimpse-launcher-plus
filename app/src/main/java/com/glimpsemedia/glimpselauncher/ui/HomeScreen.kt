@@ -16,6 +16,9 @@ import com.glimpsemedia.glimpselauncher.model.PAGE_ROWS
 import com.glimpsemedia.glimpselauncher.data.WidgetSupport
 import com.glimpsemedia.glimpselauncher.data.WidgetChoice
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.BoxWithConstraints
 import com.glimpsemedia.glimpselauncher.data.withTheme
 import com.glimpsemedia.glimpselauncher.data.isTheme
@@ -294,6 +297,8 @@ fun HomeScreen(
     var tileColorFor by remember { mutableStateOf<ItemRef?>(null) }
     var iconColorFor by remember { mutableStateOf<ItemRef?>(null) }
     var folderColorFor by remember { mutableStateOf<ItemRef?>(null) }
+    var folderBadgeFor by remember { mutableStateOf<ItemRef?>(null) }
+    var iconFor by remember { mutableStateOf<IconRequest?>(null) }
     var textColorFor by remember { mutableStateOf<ItemRef?>(null) }
     // The folder whose "Add apps" list is open.
     var folderAddFor by remember { mutableStateOf<ItemRef?>(null) }
@@ -364,7 +369,7 @@ fun HomeScreen(
             state.textFolderOpen = null
             textWidgetMenu = null; textWidgetSizing = null
             showAllApps = false; showSearch = false; browsing = null; showSettings = false; showHelp = false; showAbout = false; picker = null; itemMenu = null
-            emptyMenuPage = null; openFolder = null; renameFolderFor = null; tileColorFor = null; iconColorFor = null; folderColorFor = null; textColorFor = null; folderAddFor = null
+            emptyMenuPage = null; openFolder = null; renameFolderFor = null; tileColorFor = null; iconColorFor = null; folderColorFor = null; folderBadgeFor = null; iconFor = null; textColorFor = null; folderAddFor = null
             pagerState.animateScrollToPage(pagerIndexOf(0), animationSpec = pageTurnSpec())
         }
     }
@@ -379,7 +384,7 @@ fun HomeScreen(
     }
     // Locking the screens locks the notes too.
     LaunchedEffect(unlocked) { if (!unlocked) { state.notesUnlocked = false; state.textFolderOpen = null } }
-    LaunchedEffect(unlocked) { if (!unlocked) { pinStep = pinStepAfterLock(pinStep); showSettings = false; picker = null; itemMenu = null; emptyMenuPage = null; renameFolderFor = null; tileColorFor = null; iconColorFor = null; folderColorFor = null; textColorFor = null; folderAddFor = null; holdMenuFor = null; barMenuFor = null; textWidgetMenu = null; textWidgetSizing = null } }
+    LaunchedEffect(unlocked) { if (!unlocked) { pinStep = pinStepAfterLock(pinStep); showSettings = false; picker = null; itemMenu = null; emptyMenuPage = null; renameFolderFor = null; tileColorFor = null; iconColorFor = null; folderColorFor = null; folderBadgeFor = null; iconFor = null; textColorFor = null; folderAddFor = null; holdMenuFor = null; barMenuFor = null; textWidgetMenu = null; textWidgetSizing = null } }
 
     // Dragging to the left or right edge for a moment turns the page.
     val edgeDirection = when {
@@ -532,6 +537,7 @@ fun HomeScreen(
         LocalTileNameScale provides nameStepScale(ps.tileNameStep),
         LocalTileIconScale provides iconStepScale(ps.tileIconStep),
         LocalShowTiles provides state.settings.showTiles,
+        LocalChangeIcon provides { req: IconRequest -> iconFor = req },
         LocalFolderStyle provides state.settings.folderStyle,
         LocalFolderIcon provides state.settings.folderIcon,
         LocalFolderColor provides shaded(if (state.settings.folderColor == 0) FOLDER_YELLOW else state.settings.folderColor, state.settings.folderShade),
@@ -577,6 +583,7 @@ fun HomeScreen(
                         columns = layout.columns,
                         rows = layout.rows,
                         folderColors = layout.folderColors,
+                        folderBadges = layout.folderBadges,
                         showNames = state.settings.showTileNames,
                         items = (layout.pages.getOrNull(index) ?: Page()).items,
                         // A tile's own colours with its own darker/lighter change applied.
@@ -670,9 +677,9 @@ fun HomeScreen(
             ) {
                 when {
                     app != null -> AppIcon(app, null)
-                    item is Item.AllApps -> AllAppsGlyph()
-                    item is Item.Search -> SearchGlyph()
-                    item is Item.Emergency -> EmergencyGlyph()
+                    item is Item.AllApps -> BuiltInIcon("glimpse:allapps") { AllAppsGlyph() }
+                    item is Item.Search -> BuiltInIcon("glimpse:search") { SearchGlyph() }
+                    item is Item.Emergency -> BuiltInIcon("glimpse:emergency") { EmergencyGlyph() }
                     item is Item.Widget -> Text("Widget", color = LocalMenu.current.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     else -> FolderGlyph()
                 }
@@ -862,6 +869,9 @@ fun HomeScreen(
             val name = appKey?.let { apps[it]?.label ?: it } ?: "All apps"
             MenuDialog(title = name, onClose = { barMenuFor = null }) {
                 BigButton("Hold action", { holdMenuFor = dockHoldKey(appKey) to name; barMenuFor = null }, primary = true)
+                BigButton("Change the icon", {
+                    iconFor = appKey?.let { IconRequest(it, name, apps[it]) } ?: IconRequest("glimpse:allapps", "All apps", null); barMenuFor = null
+                })
                 if (appKey != null) {
                     val slots = state.settings.barSlots
                     if (layout.canMoveInDock(appKey, -1, slots)) BigButton("Move left", { state.change(layout.dockMoved(appKey, -1, slots)); barMenuFor = null })
@@ -1026,6 +1036,16 @@ fun HomeScreen(
                 )
             }
         }
+        iconFor?.let { req -> IconPicker(req) { iconFor = null } }
+        folderBadgeFor?.let { ref ->
+            val item = layout.pages.getOrNull(ref.page)?.items?.getOrNull(ref.index)
+            if (item !is Item.Folder) folderBadgeFor = null else {
+                FolderBadgeDialog(
+                    item.name, layout.badgeOf(item), onPick = { state.change(layout.withFolderBadge(item, it)) }, onClose = { folderBadgeFor = null },
+                    currentColour = layout.colourBadgeOf(item), onPickColour = { state.change(layout.withColourBadge(item, it)) },
+                )
+            }
+        }
         textColorFor?.let { ref ->
             val item = layout.pages.getOrNull(ref.page)?.items?.getOrNull(ref.index)
             if (item == null) textColorFor = null else {
@@ -1119,10 +1139,20 @@ fun HomeScreen(
                         BigButton("Add apps to this folder", { folderAddFor = ref; itemMenu = null })
                     }
                     // Without tiles there is no card to colour.
+                    when {
+                        app != null -> IconRequest(app.key, app.label, app)
+                        item is Item.AllApps -> IconRequest("glimpse:allapps", "All apps", null)
+                        item is Item.Search -> IconRequest("glimpse:search", "Search", null)
+                        item is Item.Emergency -> IconRequest("glimpse:emergency", "Emergency", null)
+                        else -> null
+                    }?.let { req -> BigButton("Change the icon", { iconFor = req; itemMenu = null }) }
                     if (state.settings.showTiles) BigButton("Change this tile's colour", { tileColorFor = ref; itemMenu = null })
                     BigButton("Change the square behind the icon", { iconColorFor = ref; itemMenu = null })
                     // With the folder-icon look, a folder can have its own colour.
                     if (item is Item.Folder && state.settings.folderStyle == 1) BigButton("Change the folder colour", { folderColorFor = ref; itemMenu = null })
+                    com.glimpsemedia.glimpselauncher.model.badgeMenuLine(item, state.settings.folderStyle, layout.anyBadgeOf(item))?.let { line ->
+                        BigButton(line, { folderBadgeFor = ref; itemMenu = null })
+                    }
                     BigButton("Change the colour of the name", { textColorFor = ref; itemMenu = null })
                     item.holdKey?.let { key ->
                         val name = app?.label ?: (item as? Item.Folder)?.name ?: if (item is Item.Search) "Search" else "All apps"
@@ -1204,6 +1234,7 @@ private fun PageGrid(
     rows: Int = PAGE_ROWS,
     /** Each folder's own colour for the folder-icon look. */
     folderColors: Map<String, Int> = emptyMap(),
+    folderBadges: Map<String, String> = emptyMap(),
     showNames: Boolean,
     items: List<Item?>,
     tileColors: Map<String, Int>,
@@ -1297,15 +1328,22 @@ private fun PageGrid(
                         when {
                             item == null -> EmptySlot(unlocked, { onEmptyTap(slot) }, onEmptyLong)
                             app != null -> BigTile(app.label, { onLaunch(app) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], Badges.forPackage(app.component.packageName), iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { AppIcon(app, null) }
-                            item is Item.Emergency -> BigTile("Emergency", onEmergency, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: EMERGENCY_RED, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { EmergencyGlyph() }
-                            item is Item.AllApps -> BigTile("All apps", onAllApps, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { AllAppsGlyph() }
-                            item is Item.Search -> BigTile("Search", onSearch, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { SearchGlyph() }
+                            item is Item.Emergency -> BigTile("Emergency", onEmergency, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: EMERGENCY_RED, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:emergency") { EmergencyGlyph() } }
+                            item is Item.AllApps -> BigTile("All apps", onAllApps, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:allapps") { AllAppsGlyph() } }
+                            item is Item.Search -> BigTile("Search", onSearch, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:search") { SearchGlyph() } }
                             item is Item.Folder -> {
                                 // The folder-icon look: a folder in its own colour (or the shared one), with no square behind it.
                                 val asIcon = LocalFolderStyle.current == 1
                                 val folderInk = folderColors[item.colorKey] ?: LocalFolderColor.current
-                                BigTile(item.name, { onOpenFolder(slot) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], item.apps.sumOf { k -> apps[k]?.let { Badges.forPackage(it.component.packageName) } ?: 0 }, iconColors[item.colorKey] ?: 0, if (asIcon) 100 else iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) {
-                                    if (asIcon) FolderPicture(LocalFolderIcon.current, Color(folderInk)) else FolderPreview(item.apps.mapNotNull { apps[it] })
+                                val badge = folderBadges[item.colorKey]?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }?.takeIf { asIcon }
+                                val colourBadge = folderBadges[item.colorKey]?.takeIf { asIcon && it.startsWith(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE) }
+                                    ?.removePrefix(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE)?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }
+                                BigTile(item.name, { onOpenFolder(slot) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], item.apps.sumOf { k -> apps[k]?.let { Badges.forPackage(it.component.packageName) } ?: 0 }, iconColors[item.colorKey] ?: 0, if (asIcon) 100 else iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0, spokenExtra = (badge ?: colourBadge)?.let { folderBadgeSpoken(it) }) {
+                                    if (asIcon) Box {
+                                        FolderPicture(LocalFolderIcon.current, Color(folderInk))
+                                        badge?.let { FolderBadge(it, Color(folderInk)) }
+                                        colourBadge?.let { ColourFolderBadge(it) }
+                                    } else FolderPreview(item.apps.mapNotNull { apps[it] })
                                 }
                             }
                             else -> Unit  // a widget is drawn over the grid below; a covered square shows nothing
@@ -1535,7 +1573,7 @@ private fun AllAppsList(
             // Where the "All apps" heading was: a button showing what is listed, which changes it.
             Text(
                 if (filter == null) "Filter: All apps" else "Filter: $filter",
-                color = LocalMenu.current.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                color = LocalMenu.current.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.padding(end = 12.dp).clip(RoundedCornerShape(20.dp)).background(LocalMenu.current.button)
                     .clickable(onClickLabel = "Choose which apps are listed") { choosingFilter = true }
@@ -1576,13 +1614,16 @@ private fun AllAppsList(
                         renaming = null
                     }, primary = true)
                 } else {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    NameAndButton(start = {
                         Text(tag.name, color = LocalMenu.current.text, fontSize = 20.sp, modifier = Modifier.weight(1f))
-                        BigButton("Rename", { renaming = tag.name }, fontSize = 16.sp)
-                        BigButton("Delete", {
-                            onChange(layout.withoutTag(tag.name))
-                            if (filter == tag.name) onFilter(null)
-                        }, fontSize = 16.sp)
+                    }) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            BigButton("Rename", { renaming = tag.name }, fontSize = 16.sp)
+                            BigButton("Delete", {
+                                onChange(layout.withoutTag(tag.name))
+                                if (filter == tag.name) onFilter(null)
+                            }, fontSize = 16.sp)
+                        }
                     }
                 }
             }
@@ -1596,6 +1637,8 @@ private fun AllAppsList(
         MenuDialog(title = app.label, onClose = { heldApp = null }) {
             if (onAdd != null) BigButton("Add to the screen", { onAdd(app); heldApp = null }, primary = true)
             BigButton("Tags", { taggingApp = app; heldApp = null })
+            val changeIcon = LocalChangeIcon.current
+            BigButton("Change the icon", { changeIcon(IconRequest(app.key, app.label, app)); heldApp = null })
             BigButton("App info", { onAppInfo(app); heldApp = null })
             BigButton("Uninstall", { onUninstall(app); heldApp = null })
         }
@@ -1697,8 +1740,9 @@ private fun SettingsScreen(
     @Composable
     fun <T> Choices(title: String, options: List<Pair<T, String>>, chosen: T, onPick: (T) -> Unit) {
         CardTitle(title)
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for ((value, label) in options) BigButton(label, { onPick(value) }, Modifier.weight(1f), primary = chosen == value, fontSize = 16.sp)
+        ButtonRow(options.size, minButtonWidth(options.map { it.second }, 16f).dp, Modifier.padding(top = 8.dp)) { i, m ->
+            val (value, label) = options[i]
+            BigButton(label, { onPick(value) }, m, primary = chosen == value, fontSize = 16.sp)
         }
     }
 
@@ -1955,6 +1999,7 @@ private fun SettingsScreen(
                         CardNote("Used by the Folder icon look.")
                     }
                 "Shapes preview" -> ShapesPreview(s.showTiles)
+                "Icon pack" -> IconPackRow(label, s.iconPack) { state.change(s.copy(iconPack = it)) }
                 "Tile shape" -> Column(Modifier.alpha(if (s.showTiles) 1f else 0.5f)) {
                     Choices(label, SHAPE_CHOICES, s.tileShape) { state.change(s.copy(tileShape = it)) }
                     if (!s.showTiles) CardNote("Tiles are switched off (Home screen › Screens).")
@@ -1977,6 +2022,10 @@ private fun SettingsScreen(
                 "Text on the tiles and the bar" -> ColorRow(label, s.tileTextColor, "Automatic", 0) { picking = ColorTarget.TileText }
                 "Names on the tiles" -> SwitchRow(label, s.showTileNames) { state.change(s.copy(showTileNames = it)) }
                 "Names in the bottom bar" -> SwitchRow(label, s.showDockNames) { state.change(s.copy(showDockNames = it)) }
+                "Menu text size" -> {
+                    StepSlider(label, s.menuTextStep, com.glimpsemedia.glimpselauncher.data.MENU_TEXT_STEPS) { state.change(s.copy(menuTextStep = it)) }
+                    CardNote("The size of the text in Settings, menus, Help and other pop-ups. Buttons move onto more lines when they no longer fit side by side.")
+                }
                 "Name size on the tiles" -> StepSlider(label, s.tileNameStep, com.glimpsemedia.glimpselauncher.data.NAME_STEPS) { state.change(s.copy(tileNameStep = it)) }
                 "Icon size on the tiles" -> StepSlider(label, s.tileIconStep, com.glimpsemedia.glimpselauncher.data.ICON_STEPS) { state.change(s.copy(tileIconStep = it)) }
                 "Mark tiles that have a hold action" -> SwitchRow(label, s.showHoldMark) { state.change(s.copy(showHoldMark = it)) }
@@ -2245,10 +2294,9 @@ private fun TransparencyRow(title: String, current: Int?, sameName: String?, onP
         if (sameName != null) {
             BigButton(if (current == null) "$sameName (chosen)" else sameName, { onPick(null) }, Modifier.padding(top = 8.dp), primary = current == null)
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (percent in listOf(0, 25, 50, 75, 100)) {
-                BigButton("$percent%", { onPick(percent) }, Modifier.weight(1f), primary = current == percent, fontSize = 16.sp)
-            }
+        val percents = listOf(0, 25, 50, 75, 100)
+        ButtonRow(percents.size, minButtonWidth(listOf("100%"), 16f).dp, Modifier.padding(top = 8.dp), gap = 6.dp) { i, m ->
+            BigButton("${percents[i]}%", { onPick(percents[i]) }, m, primary = current == percents[i], fontSize = 16.sp)
         }
     }
 }
@@ -2260,11 +2308,9 @@ private enum class ColorTarget { Tiles, Bar, Clock, ClockBack, Highlight, IconSq
 private fun ColorRow(title: String, current: Int, standardName: String, transparency: Int, standardColor: Color? = null, onChoose: () -> Unit) {
     val menu = LocalMenu.current
     val inCard = LocalInCard.current
-    Row(
-        Modifier.fillMaxWidth()
-            .then(if (inCard) Modifier.padding(vertical = 2.dp) else Modifier.clip(RoundedCornerShape(18.dp)).background(menu.surface).padding(12.dp)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    NameAndButton(
+        Modifier.then(if (inCard) Modifier.padding(vertical = 2.dp) else Modifier.clip(RoundedCornerShape(18.dp)).background(menu.surface).padding(12.dp)),
+        start = {
         Box(
             Modifier.size(if (inCard) 36.dp else 44.dp).clip(CircleShape).background(if (current == 0) standardColor ?: menu.button else Color(current))
                 .border(2.dp, menu.dimText, CircleShape),
@@ -2274,6 +2320,8 @@ private fun ColorRow(title: String, current: Int, standardName: String, transpar
             val note = listOfNotNull(standardName.takeIf { current == 0 }, "$transparency% transparent".takeIf { transparency > 0 }).joinToString(", ")
             if (note.isNotEmpty()) Text(note, color = menu.dimText, fontSize = if (inCard) 14.sp else 16.sp)
         }
+        },
+    ) {
         Text(
             "Change", color = readableOn(LocalAccent.current), fontSize = if (inCard) 16.sp else 18.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(LocalAccent.current)
@@ -2294,17 +2342,18 @@ internal fun ColourPicker(
 ) = MenuText {
     val menu = LocalMenu.current
     @Composable
-    fun Swatch(argb: Int, name: String, size: androidx.compose.ui.unit.Dp) {
+    fun RowScope.Swatch(argb: Int, name: String, size: androidx.compose.ui.unit.Dp) {
         val chosen = argb == current
-        Box(
-            Modifier.size(size).clip(CircleShape).background(Color(argb))
+        // Each colour has an equal share of the row, at most [size] wide, so a row always fits a narrow screen.
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { Box(
+            Modifier.widthIn(max = size).fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(Color(argb))
                 .border(if (chosen) 4.dp else 1.dp, if (chosen) LocalAccent.current else menu.dimText, CircleShape)
                 .clickable(onClickLabel = "Use $name") { onPick(argb) },
             contentAlignment = Alignment.Center,
         ) {
             if (chosen) Icon(Icons.Filled.Check, contentDescription = "$name, chosen",
-                tint = if (Color(argb).luminance() > 0.45f) Color.Black else Color.White, modifier = Modifier.size(size * 0.6f))
-        }
+                tint = if (Color(argb).luminance() > 0.45f) Color.Black else Color.White, modifier = Modifier.fillMaxSize(0.6f))
+        } }
     }
     Column(Modifier.fillMaxSize().background(menu.background).topSafePadding().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2319,12 +2368,12 @@ internal fun ColourPicker(
             if (extra != null) item { extra() }
             item { BigButton(if (current == 0) "$standardName (chosen)" else standardName, { onPick(0) }, primary = current == 0) }
             item {
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     for ((name, argb) in GreyChoices) Swatch(argb, name, 52.dp)
                 }
             }
             items(ColourGrid.size) { hue ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     for ((shade, argb) in ColourGrid[hue].withIndex()) Swatch(argb, "colour ${hue + 1}, shade ${shade + 1}", 44.dp)
                 }
             }
@@ -2454,6 +2503,8 @@ private fun FolderPanel(
             if (at > 0) BigButton("Move earlier", { onMove(app.key, at - 1); menuFor = null })
             if (at in 0 until order.size - 1) BigButton("Move later", { onMove(app.key, at + 1); menuFor = null })
             BigButton("Take it out of the folder", { onTakeOut(app.key); menuFor = null; onClose() }, primary = true)
+            val changeIcon = LocalChangeIcon.current
+            BigButton("Change the icon", { changeIcon(IconRequest(app.key, app.label, app)); menuFor = null })
             BigButton("App info (to uninstall)", { onAppInfo(app); menuFor = null })
         }
     }
@@ -2610,14 +2661,14 @@ private fun WelcomeScreen(
                 }
                 2 -> {
                     Text("Eight big tiles a screen, or sixteen smaller ones. You can change this, and everything else here, in Settings.", color = body, fontSize = 20.sp, lineHeight = 30.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        for (n in com.glimpsemedia.glimpselauncher.model.GRID_COLUMNS) {
-                            BigButton("$n × 4", { state.change(state.layout.withColumns(n)) }, Modifier.weight(1f), primary = state.layout.columns == n)
-                        }
+                    val columns = com.glimpsemedia.glimpselauncher.model.GRID_COLUMNS
+                    ButtonRow(columns.size, minButtonWidth(listOf("4 × 4"), 20f).dp) { i, m ->
+                        val n = columns[i]
+                        BigButton("$n × 4", { state.change(state.layout.withColumns(n)) }, m, primary = state.layout.columns == n)
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BigButton("Dark", { state.change(s.copy(darkTheme = true)) }, Modifier.weight(1f), primary = s.darkTheme)
-                        BigButton("Light", { state.change(s.copy(darkTheme = false)) }, Modifier.weight(1f), primary = !s.darkTheme)
+                    ButtonRow(2, minButtonWidth(listOf("Light"), 20f).dp) { i, m ->
+                        if (i == 0) BigButton("Dark", { state.change(s.copy(darkTheme = true)) }, m, primary = s.darkTheme)
+                        else BigButton("Light", { state.change(s.copy(darkTheme = false)) }, m, primary = !s.darkTheme)
                     }
                     ThemeChoices(
                         s, { state.change(s.withTheme(it)); pickedTheme = it }, state.savedThemes.list,

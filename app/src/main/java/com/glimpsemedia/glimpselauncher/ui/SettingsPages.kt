@@ -163,7 +163,7 @@ private fun PageBar(title: String, onBack: (() -> Unit)?, onDone: () -> Unit) {
             ) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = menu.text, modifier = Modifier.size(26.dp)) }
         }
         Text(
-            title, color = menu.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            title, color = menu.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 3, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = if (onBack != null) 4.dp else 0.dp).semantics { heading() },
         )
         Text(
@@ -191,8 +191,8 @@ private fun Entry(icon: String, title: String, summary: String, first: Boolean, 
             Icon(iconFor(icon), contentDescription = null, tint = accentOn(menu.button), modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(title, color = menu.text, fontSize = 18.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (summary.isNotEmpty()) Text(summary, color = menu.dimText, fontSize = 14.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = menu.text, fontSize = 18.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (summary.isNotEmpty()) Text(summary, color = menu.dimText, fontSize = 14.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Text("›", color = menu.dimText, fontSize = 22.sp, modifier = Modifier.padding(start = 8.dp))
     }

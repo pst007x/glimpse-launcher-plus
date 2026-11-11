@@ -120,8 +120,15 @@ fun GlimpseTheme(content: @Composable () -> Unit) {
  */
 fun wallpaperWasSet(supported: Boolean, allowed: Boolean, id: Int): Boolean = supported && allowed && id != 0
 
-/** Menus and pop-ups (Settings, menus, choosers, Help, app lists) use slightly smaller text than the home screens. */
-const val MENU_TEXT_SCALE = 0.9f
+/**
+ * How menus and pop-ups (Settings, menus, choosers, Help, app lists) size their text, against the phone's own text
+ * size: step 0 (the usual) is 90%, slightly smaller than the home screens; the person can choose 80% to 140%.
+ */
+fun menuTextScale(step: Int): Float = MENU_SCALES[step.coerceIn(-1, 4) + 1]
+private val MENU_SCALES = listOf(0.8f, 0.9f, 1.0f, 1.1f, 1.25f, 1.4f)
+
+/** The menu text scale chosen in Settings, given by the home screen. */
+val LocalMenuTextScale = androidx.compose.runtime.compositionLocalOf { menuTextScale(0) }
 
 private val LocalMenuTextScaled = androidx.compose.runtime.compositionLocalOf { false }
 
@@ -133,7 +140,7 @@ fun MenuText(content: @androidx.compose.runtime.Composable () -> Unit) {
     } else {
         val d = androidx.compose.ui.platform.LocalDensity.current
         androidx.compose.runtime.CompositionLocalProvider(
-            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale * MENU_TEXT_SCALE),
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, d.fontScale * LocalMenuTextScale.current),
             LocalMenuTextScaled provides true,
         ) { content() }
     }

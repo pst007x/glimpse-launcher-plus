@@ -99,14 +99,18 @@ private fun Modifier.tapOrHold(
     )
 }
 
-/** An app's own icon, loaded off the main thread. */
+/** Where app icons come from (the icon pack, or none); given by the activity. Null in previews: the apps' own icons. */
+val LocalIconStore = androidx.compose.runtime.staticCompositionLocalOf<com.glimpsemedia.glimpselauncher.data.IconStore?> { null }
+
+/** An app's icon (its icon pack's, or its own), loaded off the main thread; the last one shows until the new one is ready. */
 @Composable
 fun AppIcon(app: AppInfo, size: Dp?, modifier: Modifier = Modifier) {
     // With no size the icon fills what it is given (see BigTile), keeping its shape.
     val box = if (size != null) modifier.size(size) else modifier.fillMaxSize()
     val context = LocalContext.current
-    val bitmap by produceState<ImageBitmap?>(null, app.key) {
-        value = withContext(Dispatchers.IO) {
+    val store = LocalIconStore.current
+    val bitmap by produceState<ImageBitmap?>(null, app.key, store?.version) {
+        value = store?.bitmapFor(app) ?: withContext(Dispatchers.IO) {
             try {
                 context.packageManager.getActivityIcon(app.component).toBitmap(192, 192).asImageBitmap()
             } catch (_: Exception) {
@@ -148,6 +152,8 @@ fun BigTile(
     onHold: (() -> Unit)? = null,
     /** The name's own colour (0: the colour for all tiles, else automatic). */
     textColor: Int = 0,
+    /** Read out after the name (a folder's badge: "folder, Music"). */
+    spokenExtra: String? = null,
     icon: @Composable () -> Unit,
 ) = HoldTimed {
     val corner = if (compact) 18.dp else 28.dp
@@ -173,7 +179,7 @@ fun BigTile(
             .then(if (tiles) Modifier.background(background, cardShape) else Modifier)
             .then(if (pressed) Modifier.border(if (compact) 4.dp else 6.dp, LocalAccent.current, cardShape) else Modifier)
             .tapOrHold(touch, "Open $label", onClick, onHold)
-            .semantics(mergeDescendants = true) { contentDescription = tileContentDescription(label, badge, holdMark) }
+            .semantics(mergeDescendants = true) { contentDescription = tileContentDescription(label, badge, holdMark, spokenExtra) }
             // Without tiles there is no card to keep clear of: the icon's square may reach the edge of its place.
             .padding(horizontal = if (!tiles) 0.dp else if (compact) 4.dp else 10.dp, vertical = (if (compact) 6.dp else 8.dp) + (if (tiles && LocalTileShape.current == com.glimpsemedia.glimpselauncher.data.SHAPE_CIRCLE) 10.dp else 0.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -253,8 +259,8 @@ val LocalTileNameScale = androidx.compose.runtime.compositionLocalOf { 1f }
 val LocalTileIconScale = androidx.compose.runtime.compositionLocalOf { 1f }
 
 /** What a screen reader says for a tile, whether or not its name is shown: the name, and how many are waiting. */
-fun tileContentDescription(label: String, badge: Int, hasHold: Boolean = false): String =
-    (if (badge > 0) "$label, $badge new" else label) + (if (hasHold) ", has a hold action" else "")
+fun tileContentDescription(label: String, badge: Int, hasHold: Boolean = false, extra: String? = null): String =
+    (if (badge > 0) "$label, $badge new" else label) + (extra?.let { ", $it" } ?: "") + (if (hasHold) ", has a hold action" else "")
 
 /** The small round menu button a bottom-bar icon has while unlocked (the screen tiles have their own). */
 @Composable
@@ -392,7 +398,11 @@ fun AllAppsButton(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
-            Box(
+            // Its own icon (Change the icon, or the icon pack's) on its own, else the grid drawn on the highlight circle.
+            val own = rememberBuiltInIcon("glimpse:allapps")
+            if (own != null) {
+                androidx.compose.foundation.Image(own, contentDescription = null, modifier = Modifier.size(dockIconSize(showName, compact)))
+            } else Box(
                 Modifier.size(dockIconSize(showName, compact)).clip(CircleShape).background(LocalAccent.current),
                 contentAlignment = Alignment.Center,
             ) {

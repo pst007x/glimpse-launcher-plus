@@ -183,6 +183,8 @@ data class Layout(
     val rows: Int = PAGE_ROWS,
     /** A folder's own colour for the folder-icon look, under its [colorKey]; a folder not listed has the shared colour. */
     val folderColors: Map<String, Int> = emptyMap(),
+    /** A folder's badge on the folder-icon look (a [TextIcon] name), under its [colorKey]; most folders have none. */
+    val folderBadges: Map<String, String> = emptyMap(),
 ) {
     init {
         require(pages.isNotEmpty()) { "There is always at least one page" }
@@ -268,6 +270,23 @@ data class Layout(
     fun withFolderColor(item: Item, argb: Int): Layout =
         if (argb == 0) copy(folderColors = folderColors - item.colorKey) else copy(folderColors = folderColors + (item.colorKey to argb))
 
+    /** Gives a folder a badge (the folder-icon look); null takes it off. */
+    fun withFolderBadge(item: Item, icon: TextIcon?): Layout =
+        if (icon == null) copy(folderBadges = folderBadges - item.colorKey) else copy(folderBadges = folderBadges + (item.colorKey to icon.name))
+
+    /** A folder's mono badge, or null when it has none (or a colour one). */
+    fun badgeOf(item: Item): TextIcon? = folderBadges[item.colorKey]?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+
+    /** Gives a folder a colour badge (the Glimpse Colour drawing for that subject), saved as "color:<subject>". */
+    fun withColourBadge(item: Item, icon: TextIcon): Layout = copy(folderBadges = folderBadges + (item.colorKey to COLOUR_BADGE + icon.name))
+
+    /** A folder's colour badge subject, or null. */
+    fun colourBadgeOf(item: Item): TextIcon? = folderBadges[item.colorKey]?.takeIf { it.startsWith(COLOUR_BADGE) }
+        ?.removePrefix(COLOUR_BADGE)?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+
+    /** Either kind of badge (for the menu's Add / Change line). */
+    fun anyBadgeOf(item: Item): TextIcon? = badgeOf(item) ?: colourBadgeOf(item)
+
     /** Gives the tile's name its own colour; 0 goes back to automatic (and drops its darker/lighter change). */
     fun withTextColor(item: Item, argb: Int): Layout =
         if (argb == 0) copy(textColors = textColors - item.colorKey, textShades = textShades - item.colorKey)
@@ -293,10 +312,11 @@ data class Layout(
         val texts = textColors.filterKeys { it in onPages }
         val textShaded = textShades.filterKeys { it in onPages }
         val folders = folderColors.filterKeys { it in onPages }
+        val badges = folderBadges.filterKeys { it in onPages }
         return if (colors == tileColors && see == tileTransparency && icons == iconColors && iconSee == iconTransparency &&
-            shades == tileShades && iconShaded == iconShades && texts == textColors && textShaded == textShades && folders == folderColors) this
+            shades == tileShades && iconShaded == iconShades && texts == textColors && textShaded == textShades && folders == folderColors && badges == folderBadges) this
         else copy(tileColors = colors, tileTransparency = see, iconColors = icons, iconTransparency = iconSee, tileShades = shades, iconShades = iconShaded,
-            textColors = texts, textShades = textShaded, folderColors = folders)
+            textColors = texts, textShades = textShaded, folderColors = folders, folderBadges = badges)
     }
 
     /** How many squares each screen has. */
