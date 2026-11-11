@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -118,6 +119,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
@@ -215,8 +217,7 @@ private class DragState {
 
 private const val HOLD_MENU_MS = 5000L
 
-/** Squares are remembered by page × this + slot: more than the 16 squares of the largest grid. */
-// Each screen's squares are kept this far apart in the bounds list, so screens never overlap.
+/** Squares are remembered by page × this + slot: the squares of the largest grid, so screens never overlap. */
 private val BOUNDS_STRIDE = com.glimpsemedia.glimpselauncher.model.MAX_SLOTS
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -291,7 +292,15 @@ fun HomeScreen(
     var pinStep by remember { mutableStateOf<PinStep?>(null) }
     // A PIN pad closed without unlocking (Cancel) drops the Settings row Search was waiting to open.
     LaunchedEffect(pinStep) { if (pinStep == null) settingsHitAfterUnlock = null }
-    val pinTries = remember { com.glimpsemedia.glimpselauncher.data.PinTries(System::currentTimeMillis) }
+    // Kept in the settings file (never in a backup), so closing the launcher does not give five more tries.
+    val pinTriesContext = LocalContext.current
+    val pinTries = remember {
+        val prefs = pinTriesContext.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+        com.glimpsemedia.glimpselauncher.data.PinTries(System::currentTimeMillis, object : com.glimpsemedia.glimpselauncher.data.PinTriesMemory {
+            override fun read() = prefs.getInt("pinFailures", 0) to prefs.getLong("pinBlockedUntil", 0L)
+            override fun write(failures: Int, blockedUntil: Long) { prefs.edit().putInt("pinFailures", failures).putLong("pinBlockedUntil", blockedUntil).apply() }
+        })
+    }
     var showHelp by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var showWidgetPicker by remember { mutableStateOf(false) }
@@ -580,7 +589,9 @@ fun HomeScreen(
         },
     ) {
         // Screen 2, 3, …'s own pictures, behind everything; screen n is pager page pagerIndexOf(n - 1).
-        ScreenWallpaperLayer(on = !textMode && state.settings.screenWallpapers, pagerState, screenCount = layout.pages.size) { n -> pagerIndexOf(n - 1) }
+        // How the screens change on a swipe; text mode always slides.
+        val pageTurn = if (textMode) com.glimpsemedia.glimpselauncher.model.PageTurn.Slide else com.glimpsemedia.glimpselauncher.model.PageTurn.of(state.settings.pageTurn)
+        ScreenWallpaperLayer(on = !textMode && state.settings.screenWallpapers, pagerState, screenCount = layout.pages.size, turn = pageTurn) { n -> pagerIndexOf(n - 1) }
         Column(Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,
@@ -592,8 +603,9 @@ fun HomeScreen(
                     state = pagerState, snapAnimationSpec = pageSwipeSpec(),
                 ),
             ) { pagerIndex ->
+              Box(Modifier.fillMaxSize().pageTurnLook(pageTurn, pagerState, pagerIndex)) {
                 val index = homePageOf(pagerIndex)
-                if (pagerIndex == NOTES_PAGE) NotesScreen(state, onPictureAction, onDeletePictures, notePicture, notesOpenNow, notesDismiss, Modifier.fillMaxSize())
+                if (pagerIndex == NOTES_PAGE) NotesScreen(state, onPictureAction, onDeletePictures, notePicture, notesOpenNow, Modifier.fillMaxSize(), dismiss = notesDismiss)
                 else if (textMode && index == 0) TextScreen(state, ::onTextEntry, Modifier.fillMaxSize().homeSwipes(enabled = true, onDown = onNotifications, onUp = { showAllApps = true }))
                 else if (textMode) TextWidgetsScreen(
                     state, widgets,
@@ -657,6 +669,7 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     )
                 }
+              }
             }
             // With no bottom bar, the padlock row keeps clear of the phone's gesture bar itself.
             Box(Modifier.fillMaxWidth().then(if (barShown(state.settings)) Modifier else Modifier.navigationBarsPadding()).padding(horizontal = 12.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
@@ -1106,12 +1119,29 @@ fun HomeScreen(
             val widget = layout.pages.getOrNull(ref.page)?.items?.getOrNull(ref.index) as? Item.Widget
             if (widget == null) widgetSizeFor = null else {
                 MenuDialog(title = "Size of the widget", onClose = { widgetSizeFor = null }) {
-                    Text("Squares across × squares down", color = LocalMenu.current.dimText, fontSize = 18.sp)
-                    for ((c, r) in widgetSizes(layout.columns, layout.rows)) {
-                        BigButton("$c × $r", {
-                            val resized = layout.resizeWidget(ref.page, ref.index, c, r)
-                            if (resized == null) toast("There is no room for that size on this screen") else { state.change(resized); widgetSizeFor = null }
-                        }, primary = widget.cols == c && widget.rows == r)
+                    fun resize(c: Int, r: Int, close: Boolean) {
+                        val resized = layout.resizeWidget(ref.page, ref.index, c, r)
+                        if (resized == null) toast("There is no room for that size on this screen") else { state.change(resized); if (close) widgetSizeFor = null }
+                    }
+                    when (val menu = com.glimpsemedia.glimpselauncher.model.widgetSizeMenu(layout.columns, layout.rows)) {
+                        is com.glimpsemedia.glimpselauncher.model.WidgetSizeMenu.List -> {
+                            Text("Squares across × squares down", color = LocalMenu.current.dimText, fontSize = 18.sp)
+                            for ((c, r) in menu.sizes) BigButton("$c × $r", { resize(c, r, close = true) }, primary = widget.cols == c && widget.rows == r)
+                        }
+                        is com.glimpsemedia.glimpselauncher.model.WidgetSizeMenu.AcrossAndDown -> {
+                            // Across and down on their own: 11 buttons on 5 × 6 instead of 30 sizes.
+                            Text("Now ${widget.cols} × ${widget.rows}", color = LocalMenu.current.text, fontSize = 18.sp)
+                            Text("Squares across", color = LocalMenu.current.dimText, fontSize = 18.sp)
+                            ButtonRow(menu.columns, 48.dp) { i, m ->
+                                val (c, r) = com.glimpsemedia.glimpselauncher.model.sizeWithAcross(widget, i + 1)
+                                BigButton("${i + 1}", { resize(c, r, close = false) }, m, primary = widget.cols == i + 1)
+                            }
+                            Text("Squares down", color = LocalMenu.current.dimText, fontSize = 18.sp)
+                            ButtonRow(menu.rows, 48.dp) { i, m ->
+                                val (c, r) = com.glimpsemedia.glimpselauncher.model.sizeWithDown(widget, i + 1)
+                                BigButton("${i + 1}", { resize(c, r, close = false) }, m, primary = widget.rows == i + 1)
+                            }
+                        }
                     }
                 }
             }
@@ -1270,7 +1300,7 @@ fun HomeScreen(
     }
 }
 
-/** Up to eight large tiles, two across and four down. When unlocked, free slots show a plus and tiles can be dragged. */
+/** One screen's grid of [columns] × [rows] tiles and widgets. When unlocked, free slots show a plus and tiles can be dragged. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PageGrid(
@@ -1372,13 +1402,12 @@ private fun PageGrid(
                 // The folder-icon look: a folder in its own colour (or the shared one), with no square behind it.
                 val asIcon = LocalFolderStyle.current == 1
                 val folderInk = folderColors[item.colorKey] ?: LocalFolderColor.current
-                val badge = folderBadges[item.colorKey]?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }?.takeIf { asIcon }
-                val colourBadge = folderBadges[item.colorKey]?.takeIf { asIcon && it.startsWith(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE) }
-                    ?.removePrefix(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE)?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }
+                val badge = com.glimpsemedia.glimpselauncher.model.monoBadgeIn(folderBadges, item.colorKey)?.takeIf { asIcon }
+                val colourBadge = com.glimpsemedia.glimpselauncher.model.colourBadgeIn(folderBadges, item.colorKey)?.takeIf { asIcon }
                 BigTile(item.name, { onOpenFolder(slot) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], item.apps.sumOf { k -> apps[k]?.let { Badges.forPackage(it.component.packageName) } ?: 0 }, iconColors[item.colorKey] ?: 0, if (asIcon) 100 else iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0, spokenExtra = (badge ?: colourBadge)?.let { folderBadgeSpoken(it) }) {
                     if (big != null) BigFolderPanel(item.apps.mapNotNull { apps[it] }, if (asIcon) Color(folderInk) else null, onLaunch, { onOpenFolder(slot) }) {
-                        badge?.let { Box(Modifier.align(Alignment.BottomEnd).size(52.dp)) { FolderBadge(it, Color(folderInk)) } }
-                        colourBadge?.let { Box(Modifier.align(Alignment.BottomEnd).size(40.dp)) { ColourFolderBadge(it) } }
+                        badge?.let { Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)) { FolderBadge(it, Color(folderInk), whole = true) } }
+                        colourBadge?.let { Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).size(28.dp)) { ColourFolderBadge(it, whole = true) } }
                     } else if (asIcon) Box {
                         FolderPicture(LocalFolderIcon.current, Color(folderInk))
                         badge?.let { FolderBadge(it, Color(folderInk)) }
@@ -1392,11 +1421,7 @@ private fun PageGrid(
     @Composable
     fun BoxScope.MenuDot(item: Item, slot: Int) {
         val app = (item as? Item.App)?.let { apps[it.key] }
-        Box(
-            Modifier.align(Alignment.TopEnd).padding(if (columns > 2) 2.dp else 6.dp).size(if (columns > 2) 30.dp else 48.dp).clip(CircleShape).background(LocalAccent.current)
-                .clickable(onClickLabel = "Menu") { onMenu(slot) },
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu for " + (app?.label ?: (item as? Item.Folder)?.name ?: if (item is Item.Search) "Search" else if (item is Item.Emergency) "Emergency" else "All apps"), tint = readableOn(LocalAccent.current), modifier = Modifier.size(if (columns > 2) 20.dp else 30.dp)) }
+        MenuDotButton(columns, "Menu for " + (app?.label ?: (item as? Item.Folder)?.name ?: if (item is Item.Search) "Search" else if (item is Item.Emergency) "Emergency" else "All apps")) { onMenu(slot) }
     }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1476,11 +1501,7 @@ private fun PageGrid(
                     )
                 }
                 if (unlocked) {
-                    Box(
-                        Modifier.align(Alignment.TopEnd).padding(6.dp).size(48.dp).clip(CircleShape).background(LocalAccent.current)
-                            .clickable(onClickLabel = "Menu") { onMenu(slot) },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu for the widget", tint = readableOn(LocalAccent.current), modifier = Modifier.size(30.dp)) }
+                    MenuDotButton(columns, "Menu for the widget") { onMenu(slot) }
                 }
             }
         }
@@ -1594,8 +1615,32 @@ private fun EmptySlot(unlocked: Boolean, onTap: () -> Unit, onLong: () -> Unit) 
     ) { Icon(Icons.Filled.Add, contentDescription = "Add an app here", tint = Color.White.copy(alpha = if (tiles) 1f else 0.7f), modifier = Modifier.size(if (tiles) 44.dp else 28.dp)) }
 }
 
+/** One dot says nothing: the dots show only with two screens or more. */
+fun showPageDots(count: Int): Boolean = count > 1
+
+/** A menu dot's sizes: always a 48 dp touch, with a smaller drawn dot on the compact grids (more than 2 columns). */
+data class MenuDotSize(val touch: androidx.compose.ui.unit.Dp, val circle: androidx.compose.ui.unit.Dp, val icon: androidx.compose.ui.unit.Dp, val inset: androidx.compose.ui.unit.Dp)
+
+fun menuDotFor(columns: Int): MenuDotSize =
+    if (columns > 2) MenuDotSize(touch = 48.dp, circle = 30.dp, icon = 20.dp, inset = 2.dp) else MenuDotSize(touch = 48.dp, circle = 48.dp, icon = 30.dp, inset = 0.dp)
+
+/** The ⋮ at a tile's or widget's top right corner, sized for the grid by [menuDotFor]. */
+@Composable
+fun BoxScope.MenuDotButton(columns: Int, spoken: String, onClick: () -> Unit) {
+    val d = menuDotFor(columns)
+    Box(
+        Modifier.align(Alignment.TopEnd).padding(if (columns > 2) 0.dp else 6.dp).size(d.touch).clickable(onClickLabel = "Menu", onClick = onClick),
+        contentAlignment = Alignment.TopEnd,
+    ) {
+        Box(Modifier.padding(d.inset).size(d.circle).clip(CircleShape).background(LocalAccent.current), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.MoreVert, contentDescription = spoken, tint = readableOn(LocalAccent.current), modifier = Modifier.size(d.icon))
+        }
+    }
+}
+
 @Composable
 private fun PageDots(count: Int, current: Int) {
+    if (!showPageDots(count)) return
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         repeat(count) { i ->
             Box(
@@ -1923,7 +1968,7 @@ private fun SettingsScreen(
                         }
                     }
                     if (s.showTiles) CardNote("Switch off Tiles behind the icons to use the smaller grids.")
-                    CardNote("Icons and folders keep their order; widgets keep their size on screen.")
+                    CardNote("Icons and folders keep their order; widgets grow or shrink with the grid.")
                 }
                 "Free layout: put icons in any square" -> {
                     SwitchRow(label, s.customLayout) { state.change(s.copy(customLayout = it)) }
@@ -2004,6 +2049,20 @@ private fun SettingsScreen(
                     if (s.screenWallpapers) ScreenWallpaperRows(state.layout.pages.size)
                     else CardNote("Off: every screen shows the default wallpaper. Pictures chosen before are kept for when this is on again.")
                 }
+                "Screen change" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val turns = com.glimpsemedia.glimpselauncher.model.PageTurn.entries
+                    Choices(label, turns.take(2).map { it.ordinal to it.label }, s.pageTurn) { state.change(s.copy(pageTurn = it)) }
+                    ButtonRow(2, minButtonWidth(turns.drop(2).map { it.label }, 16f).dp) { i, m ->
+                        val t = turns[i + 2]
+                        BigButton(t.label, { state.change(s.copy(pageTurn = t.ordinal)) }, m, primary = s.pageTurn == t.ordinal, fontSize = 16.sp)
+                    }
+                    CardNote(when (com.glimpsemedia.glimpselauncher.model.PageTurn.of(s.pageTurn)) {
+                        com.glimpsemedia.glimpselauncher.model.PageTurn.Slide -> "The screens move sideways with your finger."
+                        com.glimpsemedia.glimpselauncher.model.PageTurn.Fade -> "The screen you are leaving fades out as the next one fades in, both staying in place."
+                        com.glimpsemedia.glimpselauncher.model.PageTurn.Zoom -> "The screen you are leaving shrinks a little and fades as the next one grows into place."
+                        com.glimpsemedia.glimpselauncher.model.PageTurn.Stack -> "The next screen slides in over the one you are on, which stays still and fades."
+                    } + " You still swipe to change screens. Text mode always slides.")
+                }
                 "Full screen: hide the top bar" -> {
                     SwitchRow(label, s.fullScreen) { state.change(s.copy(fullScreen = it)) }
                     CardNote("Hides the bar with the time, battery and notifications. Swipe down from the top edge to see it for a moment.")
@@ -2021,14 +2080,14 @@ private fun SettingsScreen(
                     val rows: List<String?> = layout.dock.take(layout.dockLeft) + listOf(null) + layout.dock.drop(layout.dockLeft)
                     for (key in rows) {
                         if (key == null) {
-                            Row(
-                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LocalMenu.current.button).padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                            // On a narrow phone with large text the button goes under the name instead of squeezing it.
+                            NameAndButton(
+                                Modifier.clip(RoundedCornerShape(14.dp)).background(LocalMenu.current.button).padding(10.dp),
+                                start = { Text("All apps button", color = LocalMenu.current.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) },
                             ) {
-                                Text("All apps button", color = LocalMenu.current.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                                 Text(
-                                    "Hold action", color = LocalMenu.current.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(LocalMenu.current.surface)
+                                    "Hold action", color = LocalMenu.current.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LocalMenu.current.surface)
                                         .clickable { onHoldAction(dockHoldKey(null), "All apps button") }.padding(horizontal = 12.dp, vertical = 9.dp),
                                 )
                             }
@@ -2047,7 +2106,7 @@ private fun SettingsScreen(
                                     if (key in hidden) Text("Hidden while the bar shows 4", color = LocalMenu.current.dimText, fontSize = 14.sp)
                                 }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 // Icon buttons: arrows to move, a bin to take the app off the bar; each says what it does to screen readers.
                                 @Composable fun IconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, what: String, onClick: () -> Unit) = Box(
                                     Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(LocalMenu.current.button)
@@ -2057,9 +2116,10 @@ private fun SettingsScreen(
                                 if (layout.canMoveInDock(key, -1, slots)) IconAction(Icons.AutoMirrored.Filled.ArrowBack, "Move $name left") { state.change(layout.dockMoved(key, -1, slots)) }
                                 if (layout.canMoveInDock(key, +1, slots)) IconAction(Icons.AutoMirrored.Filled.ArrowForward, "Move $name right") { state.change(layout.dockMoved(key, +1, slots)) }
                                 // The bottom bar has no tile menu while locked, so its hold actions are chosen here too.
+                                // Takes the room the icon buttons leave, so large text wraps instead of pushing them off.
                                 Text(
                                     "Hold action", color = LocalMenu.current.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-                                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(LocalMenu.current.button)
+                                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(12.dp)).background(LocalMenu.current.button)
                                         .clickable { onHoldAction(dockHoldKey(key), name) }.padding(horizontal = 10.dp, vertical = 11.dp),
                                 )
                                 IconAction(Icons.Filled.Delete, "Remove $name from the bottom bar") { state.change(layout.removeFromDock(key)) }
@@ -2086,7 +2146,7 @@ private fun SettingsScreen(
                 "Use text mode" -> SwitchRow(label, s.textMode) { state.change(s.copy(textMode = it)) }
                 "Text size" -> StepSlider(label, s.textStep, com.glimpsemedia.glimpselauncher.data.TEXT_STEPS) { state.change(s.copy(textStep = it)) }
                 "List side" -> Choices(label, listOf(false to "Bottom left", true to "Bottom right"), s.textListRight) { state.change(s.copy(textListRight = it)) }
-                "Text colour (names, folders and the clock)" -> ColorRow(label, s.textModeColor, "Automatic", 0) { picking = ColorTarget.TextModeText }
+                "Text colour (names, folders and the clock)" -> ColorRow(label, s.textModeColor, "Automatic", 0, shade = s.textModeShade) { picking = ColorTarget.TextModeText }
                 "Apps and folders" -> TextModeEditor(state)
 
                 // Colours and themes
@@ -2097,7 +2157,7 @@ private fun SettingsScreen(
                 "Save current theme" -> SaveThemeButton(state.savedThemes.list, onSavedTheme)
                 "Theme wallpaper" -> BigButton(label, { choosingWallpaper = true })
                 "Menus and standard colours" -> Choices(label, listOf(true to "Dark", false to "Light"), s.darkTheme) { state.change(s.copy(darkTheme = it)) }
-                "Highlight colour (selections and touched icons)" -> ColorRow(label, s.highlightColor, "Standard yellow", 0) { picking = ColorTarget.Highlight }
+                "Highlight colour (selections and touched icons)" -> ColorRow(label, s.highlightColor, "Standard yellow", 0, shade = s.highlightShade) { picking = ColorTarget.Highlight }
                 "Folder icon" -> Column {
                     SwitchRow(label, s.folderStyle == 1) { state.change(s.copy(folderStyle = if (it) 1 else 0)) }
                     CardNote(if (s.folderStyle == 1) "Folders show the picture chosen below." else "Off: folders show their apps' icons.")
@@ -2109,9 +2169,9 @@ private fun SettingsScreen(
                     }
                     if (s.folderStyle != 1) CardNote("Used by the Folder icon look.")
                 }
-                "Folder colour" -> if (s.folderStyle == 1) ColorRow(label, s.folderColor, "Folder yellow", 0, Color(FOLDER_YELLOW)) { picking = ColorTarget.Folder }
+                "Folder colour" -> if (s.folderStyle == 1) ColorRow(label, s.folderColor, "Folder yellow", 0, Color(FOLDER_YELLOW), shade = s.folderShade) { picking = ColorTarget.Folder }
                     else Column(Modifier.alpha(0.5f)) {
-                        ColorRow(label, s.folderColor, "Folder yellow", 0, Color(FOLDER_YELLOW)) {}
+                        ColorRow(label, s.folderColor, "Folder yellow", 0, Color(FOLDER_YELLOW), shade = s.folderShade) {}
                         CardNote("Used by the Folder icon look.")
                     }
                 "Shapes preview" -> ShapesPreview(s.showTiles)
@@ -2128,14 +2188,14 @@ private fun SettingsScreen(
                     Choices(label, SHAPE_CHOICES, s.slotShape) { state.change(s.copy(slotShape = it)) }
                     CardNote("The outlined place with a + that shows while unlocked.")
                 }
-                "Tile colour" -> if (s.showTiles) ColorRow(label, s.tileColor, "Standard", s.tileTransparency) { picking = ColorTarget.Tiles }
+                "Tile colour" -> if (s.showTiles) ColorRow(label, s.tileColor, "Standard", s.tileTransparency, shade = s.tileShade) { picking = ColorTarget.Tiles }
                     else Column(Modifier.alpha(0.5f)) {
                         // No tiles, so nothing to colour: the colour is kept for when they come back.
-                        ColorRow(label, s.tileColor, "Standard", s.tileTransparency) {}
+                        ColorRow(label, s.tileColor, "Standard", s.tileTransparency, shade = s.tileShade) {}
                         CardNote("Tiles are switched off (Home screen › Screens).")
                     }
-                "Icon background colour" -> ColorRow(label, s.iconColor, "Standard", s.iconTransparency) { picking = ColorTarget.IconSquare }
-                "Text on the tiles and the bar" -> ColorRow(label, s.tileTextColor, "Automatic", 0) { picking = ColorTarget.TileText }
+                "Icon background colour" -> ColorRow(label, s.iconColor, "Standard", s.iconTransparency, shade = s.iconShade) { picking = ColorTarget.IconSquare }
+                "Text on the tiles and the bar" -> ColorRow(label, s.tileTextColor, "Automatic", 0, shade = s.tileTextShade) { picking = ColorTarget.TileText }
                 "Names on the tiles" -> SwitchRow(label, s.showTileNames) { state.change(s.copy(showTileNames = it)) }
                 "Names in the bottom bar" -> SwitchRow(label, s.showDockNames) { state.change(s.copy(showDockNames = it)) }
                 "Menu text size" -> {
@@ -2145,9 +2205,9 @@ private fun SettingsScreen(
                 "Name size on the tiles" -> StepSlider(label, s.tileNameStep, com.glimpsemedia.glimpselauncher.data.NAME_STEPS) { state.change(s.copy(tileNameStep = it)) }
                 "Icon size on the tiles" -> StepSlider(label, s.tileIconStep, com.glimpsemedia.glimpselauncher.data.ICON_STEPS) { state.change(s.copy(tileIconStep = it)) }
                 "Mark tiles that have a hold action" -> SwitchRow(label, s.showHoldMark) { state.change(s.copy(showHoldMark = it)) }
-                "Colour of the bottom bar" -> ColorRow(label, s.barColor, "Standard", s.barTransparency) { picking = ColorTarget.Bar }
-                "Colour of the clock and date" -> ColorRow(label, s.clockColor, "White", s.clockTransparency) { picking = ColorTarget.Clock }
-                "Colour behind the clock" -> ColorRow(label, s.clockBackColor, "Same as the bottom bar", s.clockBackTransparency) { picking = ColorTarget.ClockBack }
+                "Colour of the bottom bar" -> ColorRow(label, s.barColor, "Standard", s.barTransparency, shade = s.barShade) { picking = ColorTarget.Bar }
+                "Colour of the clock and date" -> ColorRow(label, s.clockColor, "White", s.clockTransparency, shade = s.clockShade) { picking = ColorTarget.Clock }
+                "Colour behind the clock" -> ColorRow(label, s.clockBackColor, "Same as the bottom bar", s.clockBackTransparency, shade = s.clockBackShade) { picking = ColorTarget.ClockBack }
 
                 // Safety and privacy › Locking and PIN
                 "Lock again after no touching for" -> {
@@ -2372,7 +2432,6 @@ private fun SettingsScreen(
     }
 }
 
-/** 0, 25, 50, 75 and 100 percent; with [sameName] given, a first button goes back to following the setting. */
 /** Darker or lighter, −50…50 in steps of 5, with a sample of the result and Reset. */
 @Composable
 private fun ShadeRow(percent: Int, sample: Color, onChange: (Int) -> Unit) {
@@ -2388,7 +2447,10 @@ private fun ShadeRow(percent: Int, sample: Color, onChange: (Int) -> Unit) {
             valueRange = SHADE_MIN.toFloat()..SHADE_MAX.toFloat(),
             steps = (SHADE_MAX - SHADE_MIN) / SHADE_STEP - 1,
             colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = LocalAccent.current, activeTrackColor = LocalAccent.current),
-            modifier = Modifier.fillMaxWidth().semantics { this.contentDescription = "Darker or lighter: ${if (percent == 0) "as picked" else if (percent > 0) "$percent% lighter" else "${-percent}% darker"}" },
+            modifier = Modifier.fillMaxWidth().semantics {
+                this.contentDescription = "Darker or lighter"
+                stateDescription = if (percent == 0) "as picked" else if (percent > 0) "$percent% lighter" else "${-percent}% darker"
+            },
         )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Darker", color = menu.dimText, fontSize = 16.sp)
@@ -2402,6 +2464,7 @@ private fun ShadeRow(percent: Int, sample: Color, onChange: (Int) -> Unit) {
     }
 }
 
+/** 0, 25, 50, 75 and 100 percent; with [sameName] given, a first button goes back to following the setting. */
 @Composable
 private fun TransparencyRow(title: String, current: Int?, sameName: String?, onPick: (Int?) -> Unit) {
     val menu = LocalMenu.current
@@ -2421,19 +2484,19 @@ private enum class ColorTarget { Tiles, Bar, Clock, ClockBack, Highlight, IconSq
 
 /** A row: what is being coloured, the colour now, and a button to choose another. */
 @Composable
-private fun ColorRow(title: String, current: Int, standardName: String, transparency: Int, standardColor: Color? = null, onChoose: () -> Unit) {
+private fun ColorRow(title: String, current: Int, standardName: String, transparency: Int, standardColor: Color? = null, shade: Int = 0, onChoose: () -> Unit) {
     val menu = LocalMenu.current
     val inCard = LocalInCard.current
     NameAndButton(
         Modifier.then(if (inCard) Modifier.padding(vertical = 2.dp) else Modifier.clip(RoundedCornerShape(18.dp)).background(menu.surface).padding(12.dp)),
         start = {
         Box(
-            Modifier.size(if (inCard) 36.dp else 44.dp).clip(CircleShape).background(if (current == 0) standardColor ?: menu.button else Color(current))
+            Modifier.size(if (inCard) 36.dp else 44.dp).clip(CircleShape).background(swatchArgb(current, standardColor?.toArgb(), shade)?.let { Color(it) } ?: menu.button)
                 .border(2.dp, menu.dimText, CircleShape),
         )
         Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
             Text(title, color = menu.text, fontSize = if (inCard) 17.sp else 20.sp)
-            val note = listOfNotNull(standardName.takeIf { current == 0 }, "$transparency% transparent".takeIf { transparency > 0 }).joinToString(", ")
+            val note = listOfNotNull(standardName.takeIf { current == 0 }, shadeNote(shade), "$transparency% transparent".takeIf { transparency > 0 }).joinToString(", ")
             if (note.isNotEmpty()) Text(note, color = menu.dimText, fontSize = if (inCard) 14.sp else 16.sp)
         }
         },
@@ -2445,6 +2508,15 @@ private fun ColorRow(title: String, current: Int, standardName: String, transpar
         )
     }
 }
+
+/** A colour row's swatch: the colour (or the standard one, when known) with its darker/lighter change; null leaves it to the menu. */
+fun swatchArgb(current: Int, standard: Int?, shade: Int): Int? = (if (current == 0) standard else current)?.let { shaded(it, shade) }
+
+/** How a colour row names its darker/lighter change, as the slider says it; nothing when unchanged. */
+fun shadeNote(shade: Int): String? = when { shade < 0 -> "${-shade}% darker"; shade > 0 -> "$shade% lighter"; else -> null }
+
+/** After a pick, whether to scroll up to the slider: only when the first own colour makes it appear. */
+fun showSliderAfterPick(before: Int, after: Int, hasExtra: Boolean): Boolean = hasExtra && before == 0 && after != 0
 
 /** The colour chart: the standard colour, white and greys, then 18 hues from dark to light. */
 @Composable
@@ -2480,7 +2552,14 @@ internal fun ColourPicker(
                     .clickable(onClick = onClose).padding(horizontal = 24.dp, vertical = 12.dp),
             )
         }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // The darker/lighter slider appears at the top with the first own colour: scroll up so it is seen.
+        val list = androidx.compose.foundation.lazy.rememberLazyListState()
+        var before by remember { mutableStateOf(current) }
+        LaunchedEffect(current) {
+            if (showSliderAfterPick(before, current, extra != null)) list.animateScrollToItem(0)
+            before = current
+        }
+        LazyColumn(state = list, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (extra != null) item { extra() }
             item { BigButton(if (current == 0) "$standardName (chosen)" else standardName, { onPick(0) }, primary = current == 0) }
             item {
@@ -2780,7 +2859,7 @@ private fun WelcomeScreen(
                     val columns = com.glimpsemedia.glimpselauncher.model.GRID_COLUMNS
                     ButtonRow(columns.size, minButtonWidth(listOf("4 × 4"), 20f).dp) { i, m ->
                         val n = columns[i]
-                        BigButton("$n × 4", { state.change(state.layout.withColumns(n)) }, m, primary = state.layout.columns == n)
+                        BigButton("$n × 4", { state.change(state.layout.withColumns(n)) }, m, primary = com.glimpsemedia.glimpselauncher.model.welcomeGridPicked(state.layout.columns, state.layout.rows, n))
                     }
                     ButtonRow(2, minButtonWidth(listOf("Light"), 20f).dp) { i, m ->
                         if (i == 0) BigButton("Dark", { state.change(s.copy(darkTheme = true)) }, m, primary = s.darkTheme)
@@ -2897,3 +2976,16 @@ private fun ThemeWallpaperList(
 
 /** The Settings pages to open for a search result: its group, then its page. */
 private fun settingsStackFor(hit: SettingsHit): List<String> = listOf("g:${SettingsMap.groupOf(hit.section).id}", "s:${hit.section}")
+
+/**
+ * A screen in the pager drawn the [turn] way: kept still, faded, shrunk or slid, from where it is against the view.
+ * Slide adds nothing, so the pager moves the screens as before.
+ */
+fun Modifier.pageTurnLook(turn: com.glimpsemedia.glimpselauncher.model.PageTurn, pager: androidx.compose.foundation.pager.PagerState, pagerIndex: Int): Modifier =
+    if (turn == com.glimpsemedia.glimpselauncher.model.PageTurn.Slide) this else this.graphicsLayer {
+        val look = com.glimpsemedia.glimpselauncher.model.pageLook(turn, pagerIndex - pager.currentPage - pager.currentPageOffsetFraction)
+        translationX = look.shift * size.width
+        alpha = look.alpha
+        scaleX = look.scale
+        scaleY = look.scale
+    }

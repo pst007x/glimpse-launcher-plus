@@ -9,7 +9,9 @@ const val GLIMPSE_SEARCH = "glimpse:search"
 fun isBuiltInEntry(key: String) = key == GLIMPSE_SETTINGS || key == SYSTEM_SETTINGS || key == GLIMPSE_SEARCH
 
 /** The mono icons a text-mode folder can have. */
-enum class TextIcon { Folder, Files, Images, Messages, Videos, Work, Film, Shopping, Music, Travel, Search, Health, AI, Money, Security, Settings, Games, Social, News, Tools, Star }
+enum class TextIcon { Folder, Files, Images, Messages, Videos, Work, Film, Shopping, Music, Travel, Search, Health, AI, Money, Security, Settings, Games, Social, News, Tools, Star,
+    // Added in 1.0.19: after the first 21, so the pickers keep their old order at the top.
+    Phone, Email, Camera, Calendar, Maps, Weather, Food, Fitness, Sport, Kids, School, Books, Podcasts, TV, Notes, Home, Car, Cloud, Documents, Pets }
 
 /** A saved icon name back to its icon; an unknown name reads as Folder. */
 fun textIconOf(name: String?): TextIcon = TextIcon.entries.firstOrNull { it.name == name } ?: TextIcon.Folder

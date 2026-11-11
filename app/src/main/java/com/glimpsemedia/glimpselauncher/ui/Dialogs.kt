@@ -12,8 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,10 +47,27 @@ fun BigButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, 
     )
 }
 
+/** Tells the launcher a finger is on the screen, so the auto-lock waits (a pop-up is a window of its own). */
+val LocalTouched = androidx.compose.runtime.staticCompositionLocalOf<() -> Unit> { {} }
+
+/** A pop-up whose touches count for the auto-lock, like touches on the home screen. */
+@Composable
+fun AwakeDialog(onDismissRequest: () -> Unit, properties: androidx.compose.ui.window.DialogProperties = androidx.compose.ui.window.DialogProperties(), content: @Composable () -> Unit) {
+    val touched by androidx.compose.runtime.rememberUpdatedState(LocalTouched.current)
+    Dialog(onDismissRequest = onDismissRequest, properties = properties) {
+        Box(
+            Modifier.pointerInput(Unit) {
+                awaitPointerEventScope { while (true) { awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial); touched() } }
+            },
+            propagateMinConstraints = true,
+        ) { content() }
+    }
+}
+
 /** A centred panel over the screen with a title and big buttons. */
 @Composable
 fun MenuDialog(title: String, onClose: () -> Unit, dismissible: Boolean = true, content: @Composable () -> Unit) = MenuText {
-    Dialog(
+    AwakeDialog(
         onDismissRequest = onClose,
         properties = androidx.compose.ui.window.DialogProperties(dismissOnBackPress = dismissible, dismissOnClickOutside = dismissible),
     ) {

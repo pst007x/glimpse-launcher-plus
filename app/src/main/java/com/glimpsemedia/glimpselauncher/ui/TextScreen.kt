@@ -26,6 +26,26 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.SportsSoccer
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Podcasts
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
@@ -121,6 +141,26 @@ val TextIcon.vector: ImageVector
         TextIcon.News -> Icons.AutoMirrored.Filled.Article
         TextIcon.Tools -> Icons.Filled.Build
         TextIcon.Star -> Icons.Filled.Star
+        TextIcon.Phone -> Icons.Filled.Phone
+        TextIcon.Email -> Icons.Filled.Email
+        TextIcon.Camera -> Icons.Filled.PhotoCamera
+        TextIcon.Calendar -> Icons.Filled.CalendarMonth
+        TextIcon.Maps -> Icons.Filled.Map
+        TextIcon.Weather -> Icons.Filled.WbSunny
+        TextIcon.Food -> Icons.Filled.Restaurant
+        TextIcon.Fitness -> Icons.Filled.FitnessCenter
+        TextIcon.Sport -> Icons.Filled.SportsSoccer
+        TextIcon.Kids -> Icons.Filled.ChildCare
+        TextIcon.School -> Icons.Filled.School
+        TextIcon.Books -> Icons.AutoMirrored.Filled.MenuBook
+        TextIcon.Podcasts -> Icons.Filled.Podcasts
+        TextIcon.TV -> Icons.Filled.Tv
+        TextIcon.Notes -> Icons.Filled.EditNote
+        TextIcon.Home -> Icons.Filled.Home
+        TextIcon.Car -> Icons.Filled.DirectionsCar
+        TextIcon.Cloud -> Icons.Filled.Cloud
+        TextIcon.Documents -> Icons.Filled.Description
+        TextIcon.Pets -> Icons.Filled.Pets
     }
 
 /** What a text-mode entry is called: the app's name, or one of the built-in entries. */

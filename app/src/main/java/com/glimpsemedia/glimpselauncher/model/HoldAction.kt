@@ -49,6 +49,21 @@ fun dockHoldKey(appKey: String?): String = "dock:" + (appKey ?: "all")
  * A web address for a hold action: `http://` and `https://` addresses as typed, a bare one with `https://` added.
  * Anything else (other kinds of link, spaces, no proper host) gives null.
  */
+/**
+ * The host of an http(s) address, read by hand: java.net.URI gives none for names with an underscore or letters
+ * outside English (bücher.de). Letters of any language, digits, '-', '_' and '.' only; the port must be a number.
+ */
+private fun webHost(url: String): String? {
+    val rest = url.substringAfter("://")
+    val authority = rest.substringBefore('/').substringBefore('?').substringBefore('#')
+    if ('@' in authority) return null
+    val host = authority.substringBefore(':')
+    val port = authority.substringAfter(':', "")
+    if (authority.contains(':') && !(port.isNotEmpty() && port.length <= 5 && port.all { it.isDigit() })) return null
+    if (host.isEmpty() || host.startsWith('.') || host.endsWith('.') || ".." in host) return null
+    return host.takeIf { h -> h.all { it.isLetterOrDigit() || it == '-' || it == '_' || it == '.' } }
+}
+
 fun webAddress(input: String): String? {
     val text = input.trim()
     if (text.isEmpty() || text.any { it.isWhitespace() }) return null
@@ -57,11 +72,11 @@ fun webAddress(input: String): String? {
         // Browsers match the scheme in lower case only, so "HTTPS://" is written "https://".
         lower.startsWith("http://") -> "http://" + text.substring(7)
         lower.startsWith("https://") -> "https://" + text.substring(8)
-        ':' in text -> return null
+        // No scheme: a colon is allowed only before a port number (example.com:8080), never as a scheme (tel:, javascript:).
+        ':' in text && !Regex("^[^:/?#]+:\\d{1,5}([/?#].*)?$").matches(text) -> return null
         else -> "https://$text"
     }
-    val host = try { java.net.URI(url).host } catch (_: Exception) { null }
-    return url.takeIf { host != null && '.' in host }
+    return url.takeIf { webHost(it)?.let { h -> '.' in h } == true }
 }
 
 /**

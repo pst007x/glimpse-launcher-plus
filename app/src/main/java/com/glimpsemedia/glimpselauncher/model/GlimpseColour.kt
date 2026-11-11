@@ -6,7 +6,6 @@ import kotlin.math.abs
 const val GLIMPSE_COLOUR = "glimpse:colour"
 
 /** The Glimpse palette (the app icon's colours). */
-const val GC_NAVY = 0xFF0A1E5A.toInt()
 const val GC_CYAN = 0xFF00BEFF.toInt()
 const val GC_PINK = 0xFFFF40A0.toInt()
 const val GC_YELLOW = 0xFFFFC400.toInt()
@@ -35,6 +34,26 @@ val GC_BADGES = mapOf(
     "Search" to "search", "Health" to "heart_pulse", "AI" to "sparkles", "Money" to "wallet", "Security" to "shield_check",
     "Settings" to "settings", "Games" to "gamepad", "Social" to "users", "News" to "newspaper", "Tools" to "wrench",
     "Star" to "star",
+    "Phone" to "phone",
+    "Email" to "mail",
+    "Camera" to "camera",
+    "Calendar" to "calendar",
+    "Maps" to "map_pin",
+    "Weather" to "cloud_sun",
+    "Food" to "utensils",
+    "Fitness" to "dumbbell",
+    "Sport" to "football",
+    "Kids" to "teddy_bear",
+    "School" to "graduation_cap",
+    "Books" to "book_open",
+    "Podcasts" to "podcast",
+    "TV" to "tv",
+    "Notes" to "notebook",
+    "Home" to "home",
+    "Car" to "car",
+    "Cloud" to "cloud",
+    "Documents" to "file_text",
+    "Pets" to "paw_print",
 )
 
 /** Every Glimpse Colour drawing (all of [GC_CATEGORIES]). */

@@ -35,8 +35,8 @@ class NotesStore(private val dir: File) {
         }
     }
 
-    /** A new, not yet created, picture file. */
-    fun newPictureFile(): File = File(pictureDir, UUID.randomUUID().toString() + ".jpg")
+    /** A new, not yet created, picture file, ending in [extension] (see [pictureExtension]). */
+    fun newPictureFile(extension: String = "jpg"): File = File(pictureDir, UUID.randomUUID().toString() + "." + extension)
 
     fun deletePictures(names: Collection<String>) {
         names.filter { NotesJson.isPlainFileName(it) }.forEach { File(pictureDir, it).delete() }

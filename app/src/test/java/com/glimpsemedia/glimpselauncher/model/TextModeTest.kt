@@ -65,7 +65,17 @@ class TextModeTest {
 
     @Test fun iconsReadByName() {
         assertEquals(TextIcon.Music, textIconOf("Music")); assertEquals(TextIcon.Folder, textIconOf("Rocket")); assertEquals(TextIcon.Folder, textIconOf(null))
-        assertEquals(21, TextIcon.entries.size)
+        assertEquals(41, TextIcon.entries.size)
+    }
+
+    @Test fun theNewIconsAreReadByName() {
+        for (n in listOf("Phone", "Email", "Camera", "Calendar", "Maps", "Weather", "Food", "Fitness", "Sport", "Kids", "School", "Books", "Podcasts", "TV", "Notes", "Home", "Car", "Cloud", "Documents", "Pets"))
+            assertEquals(n, textIconOf(n).name)
+    }
+
+    @Test fun theFirstIconsKeepTheirPlaces() {
+        // Saved by name, but the pickers list them in this order: the new ones come after the first 21.
+        assertEquals(TextIcon.Star, TextIcon.entries[20])
     }
 
     @Test fun savedAndReadBack() {

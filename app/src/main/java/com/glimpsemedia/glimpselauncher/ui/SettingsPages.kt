@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -435,7 +436,8 @@ fun StepSlider(label: String, step: Int, range: IntRange, onStep: (Int) -> Unit)
         valueRange = range.first.toFloat()..range.last.toFloat(),
         steps = range.count() - 2,
         colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = LocalAccent.current, activeTrackColor = LocalAccent.current),
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "$label: ${stepLabel(step)}" },
+        // TalkBack reads the name, then the step (not the slider's own percent as well).
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = label; stateDescription = stepLabel(step) },
     )
     Row(Modifier.fillMaxWidth()) {
         for (n in range) Text(

@@ -67,7 +67,7 @@ object Backup {
     // screens/: screen 2, 3, …'s own wallpapers.
     private val FOLDERS = listOf("notes/", "wallpapers/", "icons/picked/", "screens/")
     // Folder locations are Android grants for this phone and this install: they cannot be restored.
-    private val LEFT_OUT = setOf("welcomePage", "lastBackupMillis", "searchFolderList")
+    private val LEFT_OUT = setOf("welcomePage", "lastBackupMillis", "searchFolderList", "pinFailures", "pinBlockedUntil")
 
     /** Only these names are ever written or read: the four files, and plain file names inside notes/ and wallpapers/. */
     /**
@@ -85,7 +85,7 @@ object Backup {
         name in FILES || FOLDERS.any { f -> name.startsWith(f) && NotesJson.isPlainFileName(name.removePrefix(f)) }
 
     /** Kept from this phone when a backup is restored: when the last backup was made, and Search's folders (their grants stay). */
-    private val KEPT_ON_RESTORE = setOf("lastBackupMillis", "searchFolderList")
+    private val KEPT_ON_RESTORE = setOf("lastBackupMillis", "searchFolderList", "pinFailures", "pinBlockedUntil")
 
     /** The settings after restoring [backup] over [current]: the backup's, plus this phone's [KEPT_ON_RESTORE]. */
     fun restoredPrefs(backup: Map<String, PrefValue>, current: Map<String, PrefValue>): Map<String, PrefValue> =

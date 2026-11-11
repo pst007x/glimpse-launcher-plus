@@ -37,4 +37,8 @@ class GlimpseColourTest {
         val all = GC_ALL.toSet()
         assertTrue((GcRole.entries.map { it.drawable } + GC_BUILT_IN.values + GC_BADGES.values).all { it in all })
     }
+
+    @Test fun everyMonoBadgeHasAColourOne() {
+        assertEquals(TextIcon.entries.map { it.name }.toSet(), GC_BADGES.keys)
+    }
 }

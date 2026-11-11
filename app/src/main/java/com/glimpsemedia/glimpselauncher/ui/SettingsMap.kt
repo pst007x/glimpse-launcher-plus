@@ -29,7 +29,7 @@ object SettingsMap {
         SettingsSection("screens", "Screens", "screens", listOf(
             b("Layout", "Tiles behind the icons", "Grid", "Free layout: put icons in any square"),
             b("Add to this screen", "Add apps to this screen", "Add widgets", "Add the All apps icon"),
-            b("Screen", "Change the wallpaper", "A different wallpaper for each screen", "Full screen: hide the top bar"),
+            b("Screen", "Change the wallpaper", "A different wallpaper for each screen", "Screen change", "Full screen: hide the top bar"),
         )),
         SettingsSection("bar", "Bottom bar", "bar", listOf(
             b("Show the bar", "Show in icon view", "Show in text mode"),

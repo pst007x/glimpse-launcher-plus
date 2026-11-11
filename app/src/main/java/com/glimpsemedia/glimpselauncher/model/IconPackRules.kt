@@ -148,9 +148,6 @@ private val APPLY_EXTRAS = mapOf(
     "com.teslacoilsw.launcher.APPLY_ICON_THEME" to "com.teslacoilsw.launcher.extra.ICON_THEME_PACKAGE",
 )
 
-/** The actions of a pack's "Apply" that Glimpse answers. */
-val APPLY_ACTIONS: Set<String> get() = APPLY_EXTRAS.keys
-
 /** The pack an apply request names, or null (an action Glimpse does not answer, or no package given). */
 fun applyPackage(action: String?, extras: Map<String, String?>): String? =
     APPLY_EXTRAS[action]?.let { extras[it] }?.trim()?.ifEmpty { null }

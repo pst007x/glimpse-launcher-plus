@@ -34,12 +34,29 @@ object Pin {
     }
 }
 
-/** Five wrong PINs in a row close the pad for 30 seconds; the count then starts again. */
-class PinTries(private val now: () -> Long) {
-    private var failures = 0
-    private var blockedUntil = 0L
+/** Where the wrong-try count and the pause are kept, so closing the launcher does not start them again. */
+interface PinTriesMemory {
+    fun read(): Pair<Int, Long>
+    fun write(failures: Int, blockedUntil: Long)
+}
 
-    fun blockedForMs(): Long = (blockedUntil - now()).coerceAtLeast(0)
+/**
+ * Five wrong PINs in a row close the pad for 30 seconds; the count then starts again. With [memory] the count and
+ * the pause are kept on the phone; a clock set back never makes the pause longer than 30 seconds.
+ */
+class PinTries(private val now: () -> Long, private val memory: PinTriesMemory?) {
+    constructor(now: () -> Long) : this(now, null)
+
+    private var failures: Int
+    private var blockedUntil: Long
+
+    init {
+        val (f, b) = memory?.read() ?: (0 to 0L)
+        failures = f.coerceIn(0, MAX_TRIES - 1)
+        blockedUntil = b
+    }
+
+    fun blockedForMs(): Long = (blockedUntil - now()).coerceIn(0, BLOCK_MS)
 
     fun failed() {
         failures++
@@ -47,10 +64,12 @@ class PinTries(private val now: () -> Long) {
             blockedUntil = now() + BLOCK_MS
             failures = 0
         }
+        memory?.write(failures, blockedUntil)
     }
 
     fun succeeded() {
         failures = 0
+        memory?.write(failures, blockedUntil)
     }
 
     companion object {

@@ -135,6 +135,19 @@ class BackupTest {
         assertFalse(t.has("lastHome")); assertFalse(t.has("lastLock"))
     }
 
+    @Test fun forThisPhoneKeepsAFiveBySixGridWithItsPlacesAndBigItems() {
+        val d = tmp.newFolder()
+        val page = Page(columns = 5, rows = 6).withWidget(0, Item.Widget(41, "w/W", 3, 2)).set(29, Item.App("z/Z")).set(3, Item.App("a/A"))
+        val before = Layout(listOf(page), emptyList(), columns = 5, rows = 6)
+        val layout = File(d, "layout.json").also { it.writeText(LayoutJson.encode(before)) }
+        Backup.forThisPhone(BackupContents(manifest, emptyMap(), mapOf("layout.json" to layout)))
+        val l = LayoutJson.decode(layout.readText())!!
+        assertEquals(5 to 6, l.columns to l.rows)
+        assertTrue(l.pages[0].items.none { it is Item.Widget || it == Item.Covered })
+        assertEquals(Item.App("z/Z"), l.pages[0].items[29])   // the last square of the 5 × 6 grid keeps its app
+        assertEquals(Item.App("a/A"), l.pages[0].items[3])
+    }
+
     @Test fun settingsOfAnotherTypeAreLeftOut() {
         val backup = mapOf("showClock" to PrefValue.I(1), "darkTheme" to PrefValue.B(false), "newKey" to PrefValue.S("x"))
         val current = mapOf("showClock" to PrefValue.B(true), "darkTheme" to PrefValue.B(true))

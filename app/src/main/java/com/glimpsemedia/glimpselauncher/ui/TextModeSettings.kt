@@ -206,7 +206,7 @@ private fun FolderEditor(state: LauncherState, f: TextFolder, onAdd: () -> Unit,
         cleanTextFolderName(name)?.takeIf { it != f.name }?.let { change(f.copy(name = it)) }
         onClose()
     }
-    Dialog(onDismissRequest = ::done, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    AwakeDialog(onDismissRequest = ::done, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(menu.background).topSafePadding().navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(f.name, color = menu.text, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -279,7 +279,7 @@ private fun FolderEditor(state: LauncherState, f: TextFolder, onAdd: () -> Unit,
     if (choosingColour) {
         // 0 ("Same as the text") follows Settings > Home screen > Text mode > Text colour.
         // Its own window, so it shows above the folder editor's window.
-        Dialog(onDismissRequest = { choosingColour = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        AwakeDialog(onDismissRequest = { choosingColour = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             ColourPicker("Icon colour: ${f.name}", f.color, "Same as the text", onPick = { change(f.copy(color = it)) }, onClose = { choosingColour = false })
         }
     }
@@ -299,7 +299,7 @@ private fun FolderEditor(state: LauncherState, f: TextFolder, onAdd: () -> Unit,
 /** The A to Z apps not yet in the list or folder, with Glimpse Settings and System settings first. */
 @Composable
 private fun TextEntryPicker(state: LauncherState, have: Set<String>, onPick: (String) -> Unit, onClose: () -> Unit) {
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    AwakeDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         SearchableAppList(
             "Add an app", "Done",
             state.apps.values.filter { it.key !in have }.sortedBy { it.label.lowercase() },

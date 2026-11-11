@@ -51,6 +51,21 @@ fun widgetSizes(columns: Int, rows: Int = PAGE_ROWS): List<Pair<Int, Int>> =
     if (columns <= 2 && rows == PAGE_ROWS) listOf(1 to 1, 2 to 1, 1 to 2, 2 to 2, 2 to 3, 2 to 4)
     else (1..columns).flatMap { c -> (1..rows).map { r -> c to r } }.sortedWith(compareBy({ it.first * it.second }, { it.first }))
 
+/** How Size of the widget asks: the short list on the 2-column grid, or squares across and down on its own. */
+sealed interface WidgetSizeMenu {
+    data class List(val sizes: kotlin.collections.List<Pair<Int, Int>>) : WidgetSizeMenu
+    data class AcrossAndDown(val columns: Int, val rows: Int) : WidgetSizeMenu
+}
+
+fun widgetSizeMenu(columns: Int, rows: Int): WidgetSizeMenu =
+    if (columns <= 2 && rows == PAGE_ROWS) WidgetSizeMenu.List(widgetSizes(columns, rows)) else WidgetSizeMenu.AcrossAndDown(columns, rows)
+
+/** The size after picking [across] squares across, keeping the widget's height. */
+fun sizeWithAcross(widget: Item.Widget, across: Int): Pair<Int, Int> = across to widget.rows
+
+/** The size after picking [down] squares down, keeping the widget's width. */
+fun sizeWithDown(widget: Item.Widget, down: Int): Pair<Int, Int> = widget.cols to down
+
 /**
  * The widget size that fits the grid for a widget that wants at least [minWidthDp] by [minHeightDp]: the smallest
  * allowed size at least that big. [cellWidthDp] and [cellHeightDp] are the size of one square.
@@ -168,7 +183,7 @@ data class Layout(
     val iconTransparency: Map<String, Int> = emptyMap(),
     /** The tags for filtering All apps, in the order they were made. */
     val tags: List<AppTag> = emptyList(),
-    /** The grid: 2 (2×4) or 4 (4×4) columns; every page has the same. */
+    /** The grid's columns, 2, 4 or 5 (with [rows], one of [GRIDS]); every page has the same. */
     val columns: Int = 2,
     /** Each tile's hold action, under its [holdKey] (screen tiles) or [dockHoldKey] (bottom-bar icons). */
     val holdActions: Map<String, HoldAction> = emptyMap(),
@@ -278,14 +293,13 @@ data class Layout(
         if (icon == null) copy(folderBadges = folderBadges - item.colorKey) else copy(folderBadges = folderBadges + (item.colorKey to icon.name))
 
     /** A folder's mono badge, or null when it has none (or a colour one). */
-    fun badgeOf(item: Item): TextIcon? = folderBadges[item.colorKey]?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+    fun badgeOf(item: Item): TextIcon? = monoBadgeIn(folderBadges, item.colorKey)
 
     /** Gives a folder a colour badge (the Glimpse Colour drawing for that subject), saved as "color:<subject>". */
     fun withColourBadge(item: Item, icon: TextIcon): Layout = copy(folderBadges = folderBadges + (item.colorKey to COLOUR_BADGE + icon.name))
 
     /** A folder's colour badge subject, or null. */
-    fun colourBadgeOf(item: Item): TextIcon? = folderBadges[item.colorKey]?.takeIf { it.startsWith(COLOUR_BADGE) }
-        ?.removePrefix(COLOUR_BADGE)?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+    fun colourBadgeOf(item: Item): TextIcon? = colourBadgeIn(folderBadges, item.colorKey)
 
     /** Either kind of badge (for the menu's Add / Change line). */
     fun anyBadgeOf(item: Item): TextIcon? = badgeOf(item) ?: colourBadgeOf(item)
@@ -335,7 +349,7 @@ data class Layout(
 
     /**
      * The same things on a grid of [n] columns by [r] rows (one of [GRIDS]), as [withColumns] describes: widgets
-     * grow or shrink in width with the columns (rounded down growing, up shrinking) and are kept within [r] rows.
+     * grow or shrink in width with the columns and in height with the rows (rounded down growing, up shrinking).
      */
     fun withGrid(n: Int, r: Int): Layout {
         require((n to r) in GRIDS) { "Not one of the grids: $n × $r" }
@@ -350,7 +364,8 @@ data class Layout(
         }
         val scale = { w: Item.Widget ->
             val cols = if (n >= columns) w.cols * n / columns else (w.cols * n + columns - 1) / columns
-            w.copy(cols = cols.coerceIn(1, n), rows = w.rows.coerceIn(1, r))
+            val down = if (r >= rows) w.rows * r / rows else (w.rows * r + rows - 1) / rows
+            w.copy(cols = cols.coerceIn(1, n), rows = down.coerceIn(1, r))
         }
         val slots = n * r
         // A big item takes the first free 2 × 2 block, or one square if there is none (it is made normal afterwards).
@@ -368,7 +383,7 @@ data class Layout(
                 val homeless = mutableListOf<Item.Widget>()
                 for ((anchor, w) in o.widgets) {
                     val scaled = scale(w)
-                    val row = (anchor / columns).coerceAtMost(r - scaled.rows)
+                    val row = ((anchor / columns) * r / rows).coerceAtMost(r - scaled.rows)
                     val col = (anchor % columns) * n / columns
                     page = placeWidgetNear(page, scaled, row * n + col.coerceAtMost(n - scaled.cols)) ?: page.also { homeless += scaled }
                 }
@@ -660,7 +675,14 @@ fun Layout.removeFromDock(key: String): Layout {
     return if (i < 0) this else copy(dock = dock - key, dockLeft = if (i < dockLeft) dockLeft - 1 else dockLeft)
 }
 
-/** A folder holds as many apps as a page holds items. */
+/** The mono badge saved for [key] in a folder-badge map, if it has one (see [Layout.folderBadges]). */
+fun monoBadgeIn(badges: Map<String, String>, key: String): TextIcon? = badges[key]?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+
+/** The colour badge saved for [key] in a folder-badge map, if it has one. */
+fun colourBadgeIn(badges: Map<String, String>, key: String): TextIcon? = badges[key]?.takeIf { it.startsWith(COLOUR_BADGE) }
+    ?.removePrefix(COLOUR_BADGE)?.let { n -> TextIcon.entries.firstOrNull { it.name == n } }
+
+/** The most apps a folder holds (as many as the 2 × 4 grid's screen). */
 const val FOLDER_MAX = 8
 
 private fun Layout.itemAt(page: Int, index: Int): Item? = pages.getOrNull(page)?.items?.getOrNull(index)
@@ -743,21 +765,27 @@ object DefaultLayout {
      * A first layout, clean: one empty screen ready for apps to be added, and [preferredDock] (those that are
      * installed, at most [DOCK_MAX]) in the bottom bar.
      */
-    fun build(installed: List<String>, preferredDock: List<String>, columns: Int = 2): Layout {
+    fun build(installed: List<String>, preferredDock: List<String>, columns: Int = 2, rows: Int = PAGE_ROWS): Layout {
         val have = installed.toSet()
         // A fresh bar has four apps, two each side, to suit the standard four places.
         val dock = preferredDock.filter { it in have }.distinct().take(4)
-        return Layout(listOf(Page(columns = columns)), dock, columns = columns)
+        // Start again keeps the grid that is set; one that is not a grid of ours is 2 × 4.
+        val (c, r) = (columns to rows).takeIf { it in GRIDS } ?: (2 to PAGE_ROWS)
+        return Layout(listOf(Page(columns = c, rows = r)), dock, columns = c, rows = r)
     }
 
     /** The same bottom bar, with every other app in [installed], in the order given, filling pages of the grid. */
-    fun buildFilled(installed: List<String>, preferredDock: List<String>, columns: Int = 2): Layout {
-        val dock = build(installed, preferredDock, columns).dock
-        val rest = installed.filter { it !in dock }
-        val pages = rest.chunked(columns * PAGE_ROWS).map { chunk -> Page(chunk.map { Item.App(it) }, columns) }
-        return Layout(pages.ifEmpty { listOf(Page(columns = columns)) }, dock, columns = columns)
+    fun buildFilled(installed: List<String>, preferredDock: List<String>, columns: Int = 2, rows: Int = PAGE_ROWS): Layout {
+        val empty = build(installed, preferredDock, columns, rows)
+        val (c, r) = empty.columns to empty.rows
+        val rest = installed.filter { it !in empty.dock }
+        val pages = rest.chunked(c * r).map { chunk -> Page(chunk.map { Item.App(it) }, c, r) }
+        return Layout(pages.ifEmpty { listOf(Page(columns = c, rows = r)) }, empty.dock, columns = c, rows = r)
     }
 }
+
+/** Whether the welcome's "n × 4" button is the grid that is set (not when a smaller grid such as 4 × 5 is). */
+fun welcomeGridPicked(columns: Int, rows: Int, n: Int): Boolean = columns == n && rows == PAGE_ROWS
 
 /** A tag for filtering All apps: its name and the apps that have it. */
 data class AppTag(val name: String, val apps: Set<String>)

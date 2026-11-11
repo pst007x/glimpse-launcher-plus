@@ -157,6 +157,8 @@ class MainActivity : ComponentActivity() {
         photoFor = savedInstanceState?.getString("photoNote")?.let { id ->
             savedInstanceState.getString("photoFile")?.let { name -> id to File(notesStore.pictureDir, name) }
         }
+        // The same for a picture being chosen from the gallery: the answer still goes to its note.
+        galleryFor = savedInstanceState?.getString("galleryNote")
         // Picture files no note mentions (a cancelled photo, a crash before saving) are cleared away,
         // except while a photo is still on its way.
         val loaded = state.notes
@@ -194,6 +196,7 @@ class MainActivity : ComponentActivity() {
                     com.glimpsemedia.glimpselauncher.ui.LocalIconStore provides icons,
                     com.glimpsemedia.glimpselauncher.ui.LocalMenuTextScale provides com.glimpsemedia.glimpselauncher.ui.menuTextScale(s.menuTextStep),
                     com.glimpsemedia.glimpselauncher.ui.LocalScreenWallpapers provides screenWalls,
+                    com.glimpsemedia.glimpselauncher.ui.LocalTouched provides { state.touched() },
                 ) {
                 HomeScreen(
                     state = state,
@@ -258,6 +261,7 @@ class MainActivity : ComponentActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         photoFor?.let { (id, file) -> outState.putString("photoNote", id); outState.putString("photoFile", file.name) }
+        galleryFor?.let { outState.putString("galleryNote", it) }
     }
 
     /** The note a photo is being taken for, and the file the camera app writes it to. */
@@ -277,7 +281,8 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             // A copy in the launcher's own storage, so the note keeps it when the original is deleted.
             val name = withContext(Dispatchers.IO) {
-                val file = notesStore.newPictureFile()
+                // Named for what it is, so a PNG or WebP is not saved as .jpg.
+                val file = notesStore.newPictureFile(com.glimpsemedia.glimpselauncher.data.pictureExtension(runCatching { contentResolver.getType(uri) }.getOrNull()))
                 try {
                     contentResolver.openInputStream(uri)!!.use { input -> file.outputStream().use { input.copyTo(it) } }
                     file.name
@@ -315,7 +320,7 @@ class MainActivity : ComponentActivity() {
             is PictureRequest.Share -> shareNote(request.noteId)
             is PictureRequest.SharePicture -> {
                 val uri = pictureUri(request.name)
-                val send = Intent(Intent.ACTION_SEND).setType("image/jpeg").putExtra(Intent.EXTRA_STREAM, uri)
+                val send = Intent(Intent.ACTION_SEND).setType(com.glimpsemedia.glimpselauncher.data.pictureMime(request.name)).putExtra(Intent.EXTRA_STREAM, uri)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("", uri) }
                 start(Intent.createChooser(send, "Share the picture"))
             }
@@ -325,11 +330,12 @@ class MainActivity : ComponentActivity() {
     /** The phone's share list: the title, the lines as ☐/☑, and the pictures (each one readable only by the app chosen). */
     private fun shareNote(id: String) {
         val n = state.notes.list.firstOrNull { it.id == id } ?: return
-        val uris = n.pictures.filter { File(notesStore.pictureDir, it).exists() }.map { pictureUri(it) }
+        val present = n.pictures.filter { File(notesStore.pictureDir, it).exists() }
+        val uris = present.map { pictureUri(it) }
         val send = if (uris.isEmpty()) {
             Intent(Intent.ACTION_SEND).setType("text/plain")
         } else {
-            Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/jpeg")
+            Intent(Intent.ACTION_SEND_MULTIPLE).setType(com.glimpsemedia.glimpselauncher.data.picturesMime(present))
                 .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 .apply { clipData = ClipData.newRawUri("", uris[0]).also { c -> uris.drop(1).forEach { c.addItem(ClipData.Item(it)) } } }
@@ -427,12 +433,14 @@ class MainActivity : ComponentActivity() {
     /** Asks the phone to make this the Home app: a one-touch question on Android 10 and newer, Settings before. */
     private fun requestHome() {
         try {
-            val roles = if (Build.VERSION.SDK_INT >= 29) getSystemService(RoleManager::class.java) else null
-            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
-                homeRole.launch(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
-            } else {
-                startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+            if (Build.VERSION.SDK_INT >= 29) {
+                val roles = getSystemService(RoleManager::class.java)
+                if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) && !roles.isRoleHeld(RoleManager.ROLE_HOME)) {
+                    homeRole.launch(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                    return
+                }
             }
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
         } catch (_: Exception) {
             startActivity(Intent(Settings.ACTION_SETTINGS))
         }
@@ -444,8 +452,9 @@ class MainActivity : ComponentActivity() {
             val installed: List<AppInfo> = withContext(Dispatchers.IO) { repository.loadApps() }
             if (installed.isEmpty()) return@launch  // the phone did not answer: change nothing
             state.apps = installed.associateBy { it.key }
-            state.defaultFor = { DefaultLayout.build(installed.map { it.key }, repository.preferredDockKeys(installed)) }
-            state.filledFor = { DefaultLayout.buildFilled(installed.map { it.key }, repository.preferredDockKeys(installed)) }
+            // Start again keeps the grid that is set.
+            state.defaultFor = { DefaultLayout.build(installed.map { it.key }, repository.preferredDockKeys(installed), state.layout.columns, state.layout.rows) }
+            state.filledFor = { DefaultLayout.buildFilled(installed.map { it.key }, repository.preferredDockKeys(installed), state.layout.columns, state.layout.rows) }
             state.startingTextLayoutFor = {
                 val (phone, messages, gallery, browser) = repository.textModeDefaults(installed)
                 com.glimpsemedia.glimpselauncher.model.startingTextLayout(phone, messages, gallery, browser)
@@ -747,17 +756,6 @@ class MainActivity : ComponentActivity() {
         Toast.makeText(this, "The bug log is empty", Toast.LENGTH_SHORT).show()
     }
 
-    private fun writeToSupport() {
-        try {
-            startActivity(
-                Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$SUPPORT_EMAIL"))
-                    .putExtra(Intent.EXTRA_SUBJECT, "Glimpse Launcher ${versionName()}"),
-            )
-        } catch (_: Exception) {
-            Toast.makeText(this, "Write to $SUPPORT_EMAIL", Toast.LENGTH_LONG).show()
-        }
-    }
-
     private fun openPrivacy() {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL)))
@@ -847,7 +845,8 @@ class MainActivity : ComponentActivity() {
     /** The whole screen in pixels, as wallpapers are made for it. */
     private fun screenSize(): Pair<Int, Int> =
         if (Build.VERSION.SDK_INT >= 30) windowManager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
-        else resources.displayMetrics.let { it.widthPixels to it.heightPixels }
+        // Before Android 11, the real size: displayMetrics leaves out the navigation bar, so a wallpaper would be short.
+        else android.util.DisplayMetrics().also { @Suppress("DEPRECATION") windowManager.defaultDisplay.getRealMetrics(it) }.let { it.widthPixels to it.heightPixels }
 
     /** Change the wallpaper: the picture is placed first, then the screen question, then it is set at exactly the screen size. */
     private fun positionWallpaper(uri: Uri) {

@@ -218,16 +218,32 @@ fun FolderPictureChoices(chosen: Int, color: Color, enabled: Boolean, onPick: (I
 fun folderBadgeSpoken(icon: com.glimpsemedia.glimpselauncher.model.TextIcon): String = "folder, ${icon.name}"
 
 /**
- * A folder's badge over its picture: a circle at the bottom right, 38 % of the picture's width, in a darker shade of
- * the folder's colour, with the mono icon inside in white or near-black, whichever reads on it.
+ * Where a folder's badge sits, as fractions of the picture's square: centred across the folder, low on its front, so
+ * it stays inside the folder on all six pictures (the front starts at half the square's height at the lowest).
+ */
+data class BadgeSpot(val x: Float, val y: Float, val diameter: Float, val colourDiameter: Float)
+
+val FOLDER_BADGE_SPOT = BadgeSpot(x = 0.5f, y = 0.68f, diameter = 0.34f, colourDiameter = 0.34f)
+
+/** A box of [fraction] of the square's width centred on [FOLDER_BADGE_SPOT], or the whole box when [whole]. */
+private fun Modifier.badgeBox(maxWidth: androidx.compose.ui.unit.Dp, maxHeight: androidx.compose.ui.unit.Dp, fraction: Float, whole: Boolean): Modifier {
+    if (whole) return this.fillMaxSize()
+    val d = maxWidth * fraction
+    return this.padding(start = maxWidth * FOLDER_BADGE_SPOT.x - d / 2, top = (maxHeight * FOLDER_BADGE_SPOT.y - d / 2).coerceAtLeast(0.dp)).size(d)
+}
+
+/**
+ * A folder's badge on the front of its picture: a circle at [FOLDER_BADGE_SPOT], in a darker shade of the folder's
+ * colour, with the mono icon inside in white or near-black, whichever reads on it. [whole] fills [modifier]'s box
+ * instead (a big folder's panel corner).
  */
 @Composable
-fun FolderBadge(icon: com.glimpsemedia.glimpselauncher.model.TextIcon, folderColor: Color, modifier: Modifier = Modifier) {
+fun FolderBadge(icon: com.glimpsemedia.glimpselauncher.model.TextIcon, folderColor: Color, modifier: Modifier = Modifier, whole: Boolean = false) {
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
-        val d = maxWidth * 0.38f
+        val d = if (whole) maxWidth else maxWidth * FOLDER_BADGE_SPOT.diameter
         val circle = Color(shaded(folderColor.toArgb(), -45))
         androidx.compose.foundation.layout.Box(
-            Modifier.align(androidx.compose.ui.Alignment.BottomEnd).size(d).clip(androidx.compose.foundation.shape.CircleShape).background(circle),
+            Modifier.badgeBox(maxWidth, maxHeight, FOLDER_BADGE_SPOT.diameter, whole).clip(androidx.compose.foundation.shape.CircleShape).background(circle),
             contentAlignment = androidx.compose.ui.Alignment.Center,
         ) {
             androidx.compose.material3.Icon(icon.vector, contentDescription = null, tint = readableOn(circle), modifier = Modifier.size(d * 0.6f))
@@ -235,9 +251,9 @@ fun FolderBadge(icon: com.glimpsemedia.glimpselauncher.model.TextIcon, folderCol
     }
 }
 
-/** A folder's colour badge: the subject's Glimpse Colour tile at the bottom right, the same size as a mono badge. */
+/** A folder's colour badge: the subject's Glimpse Colour tile on the folder's front, where a mono badge sits. */
 @Composable
-fun ColourFolderBadge(subject: com.glimpsemedia.glimpselauncher.model.TextIcon, modifier: Modifier = Modifier) {
+fun ColourFolderBadge(subject: com.glimpsemedia.glimpselauncher.model.TextIcon, modifier: Modifier = Modifier, whole: Boolean = false) {
     val name = com.glimpsemedia.glimpselauncher.model.GC_BADGES[subject.name] ?: return
     val context = androidx.compose.ui.platform.LocalContext.current
     @Suppress("DiscouragedApi")
@@ -246,7 +262,7 @@ fun ColourFolderBadge(subject: com.glimpsemedia.glimpselauncher.model.TextIcon, 
     androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
         androidx.compose.foundation.Image(
             androidx.compose.ui.res.painterResource(id), contentDescription = null,
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomEnd).size(maxWidth * 0.42f),
+            modifier = Modifier.badgeBox(maxWidth, maxHeight, FOLDER_BADGE_SPOT.colourDiameter, whole),
         )
     }
 }

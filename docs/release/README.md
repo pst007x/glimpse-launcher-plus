@@ -70,6 +70,9 @@ Checks before uploading:
 Plus is built from the public GitHub copy, so the APK we publish is exactly what F-Droid builds from the same tag
 (reproducible builds: F-Droid then ships our APK, signed with the Plus key).
 
+The scripts below are kept with the maintainer's working copy and are not in the public repository; to build Plus
+from it yourself, run `./gradlew assemblePlusRelease` (the APK is unsigned without your own key).
+
 1. Raise `versionCode`/`versionName`, write `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (500
    characters at most), commit.
 2. `docs/release/plus/export_github.sh` makes the GitHub copy's commit and tag `v<versionName>` (it refuses a tag that

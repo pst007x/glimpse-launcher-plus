@@ -82,7 +82,7 @@ fun IconPicker(request: IconRequest, onClose: () -> Unit) {
     }
     fun pick(c: IconChoice?) { store.setChoice(request.key, c); onClose() }
 
-    MenuText { Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    MenuText { AwakeDialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(
             Modifier.fillMaxSize().background(menu.background).systemBarsPadding().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),

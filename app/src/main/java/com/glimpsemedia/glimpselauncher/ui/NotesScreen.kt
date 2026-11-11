@@ -100,9 +100,9 @@ fun NotesScreen(
     onDeletePictures: (List<String>) -> Unit,
     pictureFile: (String) -> java.io.File,
     open: Boolean,
+    modifier: Modifier = Modifier,
     /** Goes up whenever the notes leave the screen or Home is pressed: every menu, viewer and the keyboard close. */
     dismiss: Int = 0,
-    modifier: Modifier = Modifier,
 ) {
     val menu = LocalMenu.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -183,7 +183,7 @@ fun NotesScreen(
     colourFor?.let { id ->
         val note = list.firstOrNull { it.id == id }
         if (note == null) { colourFor = null; return@let }
-        Dialog(onDismissRequest = { colourFor = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        AwakeDialog(onDismissRequest = { colourFor = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             ColourPicker(
                 title = "Colour of the note",
                 current = note.color,
@@ -384,7 +384,7 @@ private fun NotePictures(
     }
     viewing?.let { name ->
         var asking by remember(name) { mutableStateOf(false) }
-        Dialog(onDismissRequest = { viewing = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        AwakeDialog(onDismissRequest = { viewing = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Column(Modifier.fillMaxSize().background(Color.Black)) {
                 val big = rememberPicture(pictureFile(name), 2048)
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -423,8 +423,7 @@ private fun rememberPicture(file: java.io.File, maxSide: Int): androidx.compose.
 private fun decodePicture(file: java.io.File, maxSide: Int): androidx.compose.ui.graphics.ImageBitmap? = try {
     val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
     android.graphics.BitmapFactory.decodeFile(file.path, bounds)
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxSide) sample *= 2
+    val sample = com.glimpsemedia.glimpselauncher.data.decodeSample(bounds.outWidth, bounds.outHeight, maxSide)
     val raw = android.graphics.BitmapFactory.decodeFile(file.path, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
     val turn = when (android.media.ExifInterface(file.path).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 1)) {
         android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f

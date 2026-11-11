@@ -172,9 +172,6 @@ class IconStore(context: Context) {
         version++
     }
 
-    /** Re-reads the choices after a restore wrote the prefs file anew. */
-    fun reload() { choices = parseIconChoices(prefs.getString(CHOICES_KEY, null)); memory.evictAll(); version++ }
-
     /**
      * Keeps a picture from the phone as [key]'s icon: decoded at most 1024 px wide (so a huge photo cannot run out of
      * memory), cut to its centred square, made 192 × 192 and saved in [pickedDir]. Null when it cannot be read.

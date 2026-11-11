@@ -60,6 +60,8 @@ class LauncherState(
         private set
 
     fun changeNotes(new: Notes) {
+        // Typing is in the keyboard's own window: a change to the notes counts as a touch for the auto-lock.
+        touched()
         if (new != notes) {
             notes = new
             saveNotes(new)

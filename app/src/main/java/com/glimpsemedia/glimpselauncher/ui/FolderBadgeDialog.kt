@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -36,7 +37,8 @@ fun FolderBadgeDialog(
     currentColour: TextIcon? = null, onPickColour: (TextIcon) -> Unit = {},
 ) {
     MenuDialog("Badge for $name", onClose) {
-        BigButton("No badge", { onPick(null); onClose() }, Modifier.fillMaxWidth(), primary = current == null && currentColour == null)
+        // The chosen one is said, not only shown in colour.
+        BigButton("No badge", { onPick(null); onClose() }, Modifier.fillMaxWidth().semantics { selected = current == null && currentColour == null }, primary = current == null && currentColour == null)
         val menu = LocalMenu.current
         val accent = LocalAccent.current
         for (row in TextIcon.entries.chunked(3)) {
@@ -47,12 +49,12 @@ fun FolderBadgeDialog(
                         Modifier.weight(1f).heightIn(min = 72.dp).clip(RoundedCornerShape(12.dp))
                             .border(if (picked) 3.dp else 1.dp, if (picked) accent else menu.dimText.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
                             .semantics { selected = picked }
-                            .clickable(role = Role.Button, onClickLabel = icon.name) { onPick(icon); onClose() }
+                            .clickable(role = Role.Button, onClickLabel = "use this badge") { onPick(icon); onClose() }
                             .padding(6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(icon.vector, contentDescription = null, tint = menu.text, modifier = Modifier.size(30.dp))
-                        Text(icon.name, color = menu.text, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 1)
+                        Text(icon.name, color = menu.text, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 2)
                     }
                 }
                 repeat(3 - row.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
@@ -69,13 +71,13 @@ fun FolderBadgeDialog(
                     Column(
                         Modifier.weight(1f).heightIn(min = 72.dp).clip(RoundedCornerShape(12.dp))
                             .border(if (picked) 3.dp else 1.dp, if (picked) accent else menu.dimText.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
-                            .semantics { selected = picked }
-                            .clickable(role = Role.Button, onClickLabel = "Colour " + icon.name) { onPickColour(icon); onClose() }
+                            .semantics { selected = picked; contentDescription = icon.name + ", in colour" }
+                            .clickable(role = Role.Button, onClickLabel = "use this badge") { onPickColour(icon); onClose() }
                             .padding(6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         if (id != 0) androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(id), contentDescription = null, modifier = Modifier.size(34.dp))
-                        Text(icon.name, color = menu.text, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 1)
+                        Text(icon.name, color = menu.text, fontSize = 13.sp, textAlign = TextAlign.Center, maxLines = 2)
                     }
                 }
                 repeat(3 - row.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }

@@ -159,11 +159,11 @@ class ScreenWallpaperControl(
 val LocalScreenWallpapers = androidx.compose.runtime.staticCompositionLocalOf<ScreenWallpaperControl?> { null }
 
 /**
- * Behind the home screens: each screen's own picture, sliding in and out with its screen over the phone's wallpaper.
+ * Behind the home screens: each screen's own picture, changing with its screen (by [turn]) over the phone's wallpaper.
  * [pagerIndexOfScreen] gives the pager page of screen number n (1 the home screen).
  */
 @Composable
-fun ScreenWallpaperLayer(on: Boolean, pagerState: PagerState, screenCount: Int, pagerIndexOfScreen: (Int) -> Int) {
+fun ScreenWallpaperLayer(on: Boolean, pagerState: PagerState, screenCount: Int, turn: com.glimpsemedia.glimpselauncher.model.PageTurn = com.glimpsemedia.glimpselauncher.model.PageTurn.Slide, pagerIndexOfScreen: (Int) -> Int) {
     val control = LocalScreenWallpapers.current ?: return
     // Only the screens there are: a screen set up ahead gets its picture once it is made.
     val pictures = com.glimpsemedia.glimpselauncher.model.picturesToLoad(control.pictures, screenCount)
@@ -177,8 +177,12 @@ fun ScreenWallpaperLayer(on: Boolean, pagerState: PagerState, screenCount: Int, 
                 bitmap, contentDescription = null, contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().graphicsLayer {
                     val offset = slideOffset(pagerIndexOfScreen(p.screen), pagerState.currentPage, pagerState.currentPageOffsetFraction)
-                    alpha = if (abs(offset) < 1f) 1f else 0f
-                    translationX = offset * size.width
+                    // The picture changes the same way as its screen (Settings › Screen change).
+                    val look = com.glimpsemedia.glimpselauncher.model.pageLook(turn, offset)
+                    alpha = if (abs(offset) < 1f) look.alpha else 0f
+                    translationX = (offset + look.shift) * size.width
+                    scaleX = look.scale
+                    scaleY = look.scale
                 },
             )
         }
@@ -221,7 +225,7 @@ fun PicturePositioner(request: PositionRequest, onClose: () -> Unit) {
     val ph = request.picture.height
     fun close(use: Boolean) { onClose(); if (use) request.onUse(place) else request.onCancel() }
     MenuText {
-        Dialog(onDismissRequest = { close(false) }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        AwakeDialog(onDismissRequest = { close(false) }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
             // Over the top bar and the camera cut-out too, so the picture is seen on the whole screen.
             val window = (androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
             androidx.compose.runtime.SideEffect {

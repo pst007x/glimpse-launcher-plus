@@ -114,4 +114,10 @@ class SettingsMapTest {
         assertTrue(SettingsMap.search("icon pack").any { it.label == "Icon pack" })
         assertEquals(listOf("Icon pack"), SettingsMap.sections.getValue("tiles").blocks.first { it.heading == "Icon pack" }.rows)
     }
+
+    @Test fun screenChangeSitsWithTheWallpapers() {
+        assertEquals(listOf("Change the wallpaper", "A different wallpaper for each screen", "Screen change", "Full screen: hide the top bar"),
+            SettingsMap.sections.getValue("screens").blocks.first { it.heading == "Screen" }.rows)
+        assertTrue(SettingsMap.search("screen change").any { it.label == "Screen change" })
+    }
 }

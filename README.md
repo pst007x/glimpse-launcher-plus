@@ -15,6 +15,9 @@ has no internet permission. Privacy policy: https://glimpse-media.com/glimpse/pr
 
 ## What's new
 
+- **1.0.19:** Screen change: slide, fade, zoom or stack between screens (the screen pictures follow). 20 more folder
+  badges, each in mono and colour, now on the folder's front. Widget sizes picked across and down, and widgets keep
+  their height when the grid changes. Bigger menu-dot touch, lighter note pictures, and smaller fixes.
 - **1.0.18:** Screen wallpapers can be set up ahead: + Add another screen is always there, even for screens you have
   not made yet. A screen shows its picture as soon as you make it.
 - **1.0.17:** Big icons: make any app, folder, All apps, Search or Emergency 2 × 2 (a big folder shows its apps,
