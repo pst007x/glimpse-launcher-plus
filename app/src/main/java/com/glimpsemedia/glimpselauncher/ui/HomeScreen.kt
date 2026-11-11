@@ -580,7 +580,7 @@ fun HomeScreen(
         },
     ) {
         // Screen 2, 3, …'s own pictures, behind everything; screen n is pager page pagerIndexOf(n - 1).
-        ScreenWallpaperLayer(on = !textMode && state.settings.screenWallpapers, pagerState) { n -> pagerIndexOf(n - 1) }
+        ScreenWallpaperLayer(on = !textMode && state.settings.screenWallpapers, pagerState, screenCount = layout.pages.size) { n -> pagerIndexOf(n - 1) }
         Column(Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,

@@ -33,17 +33,32 @@ class ScreenWallpapersTest {
     // ---- Add another screen ----
 
     @Test fun addStartsAtScreenTwo() {
-        assertEquals(2, nextScreenToAdd(emptyList(), 3))
+        assertEquals(2, nextScreenToAdd(emptyList()))
     }
 
     @Test fun addTakesTheNextFreeNumber() {
-        assertEquals(3, nextScreenToAdd(listOf(pic(2)), 4))
-        assertEquals(3, nextScreenToAdd(listOf(pic(2), pic(4)), 4))
+        assertEquals(3, nextScreenToAdd(listOf(pic(2))))
+        assertEquals(3, nextScreenToAdd(listOf(pic(2), pic(4))))
     }
 
-    @Test fun addStopsAtTheNumberOfScreens() {
-        assertNull(nextScreenToAdd(listOf(pic(2), pic(3)), 3))
-        assertNull(nextScreenToAdd(emptyList(), 1))
+    @Test fun addGoesPastTheScreensThereAreNow() {
+        // Screens 2 and 3 set up with only one screen made: Screen 4 can be set up too.
+        assertEquals(4, nextScreenToAdd(listOf(pic(2), pic(3))))
+    }
+
+    @Test fun addStopsAtTheLastScreenNumber() {
+        assertNull(nextScreenToAdd((2..MAX_SCREEN_PICTURE).map { pic(it) }))
+    }
+
+    @Test fun onlyTheScreensThatExistHaveTheirPicturesLoaded() {
+        val list = listOf(pic(2), pic(3), pic(5))
+        assertEquals(listOf(2, 3), picturesToLoad(list, screenCount = 3).map { it.screen })
+        assertEquals(emptyList<Int>(), picturesToLoad(list, screenCount = 1).map { it.screen })
+    }
+
+    @Test fun aScreenNotMadeYetSaysWhenItShows() {
+        assertEquals("Screen 3", screenRowLabel(3, screenCount = 3))
+        assertEquals("Screen 4 (shows once this screen is made)", screenRowLabel(4, screenCount = 3))
     }
 
     @Test fun rowsAreTheChosenScreensPlusTheOneBeingAdded() {

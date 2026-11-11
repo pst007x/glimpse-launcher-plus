@@ -87,13 +87,16 @@ class ScreenWallpaperControl(
     var adding by mutableStateOf<Int?>(null)
         private set
     private val drawn = mutableStateMapOf<String, ImageBitmap>()
+    /** How many screens there were when the pictures were last loaded. */
+    private var loadedFor = 1
 
     /** A shown picture ready to draw, or null while it loads (or if it could not be read). */
     fun bitmap(name: String): ImageBitmap? = drawn[name]
 
-    /** Loads the pictures in use and forgets the rest. */
-    suspend fun loadPictures() {
-        val names = pictures.map { it.shown }.toSet()
+    /** Loads the pictures of the [screenCount] screens there are and forgets the rest (screens set up ahead wait). */
+    suspend fun loadPictures(screenCount: Int) {
+        loadedFor = screenCount
+        val names = com.glimpsemedia.glimpselauncher.model.picturesToLoad(pictures, screenCount).map { it.shown }.toSet()
         drawn.keys.filter { it !in names }.forEach { drawn.remove(it) }
         for (n in names) if (n !in drawn) withContext(Dispatchers.IO) { store.loadShown(n) }?.let { drawn[n] = it.asImageBitmap() }
     }
@@ -137,7 +140,7 @@ class ScreenWallpaperControl(
             adding = null
             if (shown == null) { note("That picture could not be used"); tidy(); return@launch }
             update((pictures.filter { it.screen != screen } + ScreenPicture(screen, source, shown, place)).sortedBy { it.screen })
-            loadPictures()
+            loadPictures(loadedFor)
         }
     }
 
@@ -160,10 +163,11 @@ val LocalScreenWallpapers = androidx.compose.runtime.staticCompositionLocalOf<Sc
  * [pagerIndexOfScreen] gives the pager page of screen number n (1 the home screen).
  */
 @Composable
-fun ScreenWallpaperLayer(on: Boolean, pagerState: PagerState, pagerIndexOfScreen: (Int) -> Int) {
+fun ScreenWallpaperLayer(on: Boolean, pagerState: PagerState, screenCount: Int, pagerIndexOfScreen: (Int) -> Int) {
     val control = LocalScreenWallpapers.current ?: return
-    val pictures = control.pictures
-    LaunchedEffect(pictures, on) { if (on) control.loadPictures() }
+    // Only the screens there are: a screen set up ahead gets its picture once it is made.
+    val pictures = com.glimpsemedia.glimpselauncher.model.picturesToLoad(control.pictures, screenCount)
+    LaunchedEffect(control.pictures, on, screenCount) { if (on) control.loadPictures(screenCount) }
     if (!on || pictures.isEmpty()) return
     Box(Modifier.fillMaxSize()) {
         for (p in pictures) {
@@ -189,7 +193,7 @@ fun ScreenWallpaperRows(screenCount: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (n in screenRows(control.pictures, control.adding)) {
             val has = control.pictures.any { it.screen == n }
-            Text("Screen $n" + if (n > screenCount) " (no such screen now)" else "", color = menu.text, fontSize = 18.sp)
+            Text(com.glimpsemedia.glimpselauncher.model.screenRowLabel(n, screenCount), color = menu.text, fontSize = 18.sp)
             val labels = if (has) listOf("Change", "Position", "Remove") else listOf("Choosing a picture…")
             ButtonRow(labels.size, minButtonWidth(labels, 17f).dp) { i, m ->
                 when {
@@ -200,12 +204,10 @@ fun ScreenWallpaperRows(screenCount: Int) {
                 }
             }
         }
-        val next = nextScreenToAdd(control.pictures, screenCount)
-        when {
-            control.adding != null -> {}
-            next != null -> BigButton("+ Add another screen", { control.change(next) }, Modifier.fillMaxWidth(), primary = control.pictures.isEmpty())
-            screenCount < 2 -> CardNote("There is only one screen. Make a second screen (drag an icon to the empty screen after the last one), then come back here.")
-            else -> CardNote("Every screen has its own picture.")
+        val next = nextScreenToAdd(control.pictures)
+        if (control.adding == null && next != null) {
+            BigButton("+ Add another screen", { control.change(next) }, Modifier.fillMaxWidth(), primary = control.pictures.isEmpty())
+            if (next > screenCount) CardNote("A screen you have not made yet can have its picture now: it shows once the screen is made (drag an icon to the empty screen after the last one).")
         }
     }
 }

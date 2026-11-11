@@ -1,0 +1,1 @@
+Screen wallpapers can be set up ahead: + Add another screen is always there, even for screens you have not made yet. No empty screen is made; a screen shows its picture as soon as you make it, and pictures for screens not made yet use no memory.

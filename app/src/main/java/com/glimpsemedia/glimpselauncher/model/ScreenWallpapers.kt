@@ -25,9 +25,22 @@ data class ScreenPicture(val screen: Int, val source: String, val shown: String,
 fun pictureForScreen(screen: Int, on: Boolean, list: List<ScreenPicture>): ScreenPicture? =
     if (!on || screen < 2) null else list.firstOrNull { it.screen == screen }
 
-/** The next screen number "Add another screen" gives (2 first), or null when every screen up to [screenCount] has one. */
-fun nextScreenToAdd(list: List<ScreenPicture>, screenCount: Int): Int? =
-    (2..screenCount).firstOrNull { n -> list.none { it.screen == n } }
+/** The highest screen number that can have its own picture (as stored in screens.json). */
+const val MAX_SCREEN_PICTURE = 99
+
+/**
+ * The next screen number "Add another screen" gives (2 first), or null at [MAX_SCREEN_PICTURE]. A screen not made yet
+ * can be set up too: no screen is made for it, and its picture shows once that screen is made.
+ */
+fun nextScreenToAdd(list: List<ScreenPicture>): Int? =
+    (2..MAX_SCREEN_PICTURE).firstOrNull { n -> list.none { it.screen == n } }
+
+/** The pictures to load: only those of screens that exist now, so screens set up ahead cost no memory. */
+fun picturesToLoad(list: List<ScreenPicture>, screenCount: Int): List<ScreenPicture> = list.filter { it.screen <= screenCount }
+
+/** A row's name in Settings: a screen not made yet says when its picture shows. */
+fun screenRowLabel(screen: Int, screenCount: Int): String =
+    if (screen > screenCount) "Screen $screen (shows once this screen is made)" else "Screen $screen"
 
 /** The rows of the screens list, in order: those with a picture, and [adding] while its picture is being chosen. */
 fun screenRows(list: List<ScreenPicture>, adding: Int?): List<Int> = (list.map { it.screen } + listOfNotNull(adding)).distinct().sorted()
@@ -113,7 +126,7 @@ object ScreenPicturesJson {
                 val x = num("x", 0.5f) ?: continue
                 val y = num("y", 0.5f) ?: continue
                 val screen = n.toInt()
-                if (screen !in 2..99 || !NotesJson.isPlainFileName(src) || !NotesJson.isPlainFileName(pic)) continue
+                if (screen !in 2..MAX_SCREEN_PICTURE || !NotesJson.isPlainFileName(src) || !NotesJson.isPlainFileName(pic)) continue
                 if (out.any { it.screen == screen }) continue
                 out += ScreenPicture(screen, src, pic, PicturePlace(z, x, y))
             }
