@@ -79,7 +79,8 @@ data class Page(val items: List<Item?> = emptyList(), val columns: Int = 2, val 
     val count: Int get() = items.count { it != null }
     val isFull: Boolean get() = count >= slots
     val isEmpty: Boolean get() = count == 0
-    val hasWidgets: Boolean get() = items.any { it is Item.Widget }
+    /** A widget or a big item is here (they cover squares): the page keeps its places and is never packed. */
+    val hasWidgets: Boolean get() = items.any { it is Item.Widget || it == Item.Covered }
 
     /** The slot where a widget [cols] by [rows] fits (all the squares it needs are empty), or null. */
     fun widgetSpot(cols: Int, rows: Int): Int? = (0 until slots).firstOrNull { anchor ->
@@ -185,6 +186,8 @@ data class Layout(
     val folderColors: Map<String, Int> = emptyMap(),
     /** A folder's badge on the folder-icon look (a [TextIcon] name), under its [colorKey]; most folders have none. */
     val folderBadges: Map<String, String> = emptyMap(),
+    /** The items that take 2 × 2 squares, by [colorKey] (see BigItems.kt); most layouts have none. */
+    val bigItems: Set<String> = emptySet(),
 ) {
     init {
         require(pages.isNotEmpty()) { "There is always at least one page" }
@@ -350,6 +353,9 @@ data class Layout(
             w.copy(cols = cols.coerceIn(1, n), rows = w.rows.coerceIn(1, r))
         }
         val slots = n * r
+        // A big item takes the first free 2 × 2 block, or one square if there is none (it is made normal afterwards).
+        fun fitted(page: Page, item: Item): Page? =
+            (if (item.colorKey in bigItems) page.withBigItem(item) else null) ?: page.withItem(item)
         val out = mutableListOf<Page>()
         var current = Page(columns = n, rows = r)
         fun startPage() { if (!current.isEmpty) out += current; current = Page(columns = n, rows = r) }
@@ -367,15 +373,15 @@ data class Layout(
                     page = placeWidgetNear(page, scaled, row * n + col.coerceAtMost(n - scaled.cols)) ?: page.also { homeless += scaled }
                 }
                 val leftover = mutableListOf<Item>()
-                for (item in o.items) page = page.withItem(item) ?: page.also { leftover += item }
+                for (item in o.items) page = fitted(page, item) ?: page.also { leftover += item }
                 out += page
                 for (w in homeless) {
                     out += placeWidgetNear(Page(columns = n, rows = r), w, 0) ?: error("a widget always fits an empty page")
                 }
-                for (item in leftover) { current = current.withItem(item) ?: run { startPage(); current.withItem(item)!! } }
+                for (item in leftover) { current = fitted(current, item) ?: run { startPage(); fitted(current, item)!! } }
             } else {
                 for (item in o.items) {
-                    current = current.withItem(item) ?: run { out += current; Page(columns = n, rows = r).withItem(item)!! }
+                    current = fitted(current, item) ?: run { out += current; fitted(Page(columns = n, rows = r), item)!! }
                 }
             }
         }
@@ -497,10 +503,13 @@ fun Layout.removeFromPage(pageIndex: Int, itemIndex: Int, keepGaps: Boolean = fa
 fun Layout.placeItem(fromPage: Int, fromIndex: Int, toPage: Int, toSlot: Int): Layout? {
     val item = itemAt(fromPage, fromIndex) ?: return null
     if (item is Item.Widget || item is Item.Covered) return null
+    // A big item is moved with moveBig, and one in the target square is not swapped into a single square.
+    if (item.colorKey in bigItems) return null
     if (toSlot !in 0 until slotsPerPage || toPage !in pages.indices) return null
     if (fromPage == toPage && fromIndex == toSlot) return this
     val target = itemAt(toPage, toSlot)
     if (target is Item.Widget || target is Item.Covered) return null
+    if (target != null && target.colorKey in bigItems) return null
     val list = pages.toMutableList()
     list[toPage] = list[toPage].set(toSlot, item)
     list[fromPage] = list[fromPage].set(fromIndex, target)

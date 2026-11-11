@@ -55,20 +55,32 @@ class BackupTooBig : Exception("The backup is too big")
  * tested; reading never trusts the file (only known names, plain picture names, size limits, counts that match).
  */
 object Backup {
-    /** The newest backup format this app reads. 2: the layout may use a smaller grid (4×5, 5×5, 5×6). */
-    const val FORMAT = 2
+    /** The newest backup format this app reads. 2: the layout may use a smaller grid (4×5, 5×5, 5×6). 3: big items. */
+    const val FORMAT = 3
     /** The format older apps read; a backup is written in it unless its layout needs format 2. */
     const val FORMAT_USUAL = 1
     const val MAX_ENTRY = 50L shl 20
     const val MAX_TOTAL = 500L shl 20
     private const val MAX_SMALL = 1L shl 20       // manifest.json and settings.json
-    private val FILES = setOf("layout.json", "textmode.json", "notes.json", "themes.json")
+    private val FILES = setOf("layout.json", "textmode.json", "notes.json", "themes.json", "screens.json")
     // icons/picked/: pictures chosen as icons and saved copies of per-app pack icons (icons/pack/ is made again).
-    private val FOLDERS = listOf("notes/", "wallpapers/", "icons/picked/")
+    // screens/: screen 2, 3, …'s own wallpapers.
+    private val FOLDERS = listOf("notes/", "wallpapers/", "icons/picked/", "screens/")
     // Folder locations are Android grants for this phone and this install: they cannot be restored.
     private val LEFT_OUT = setOf("welcomePage", "lastBackupMillis", "searchFolderList")
 
     /** Only these names are ever written or read: the four files, and plain file names inside notes/ and wallpapers/. */
+    /**
+     * The format a backup of [layout] is written in: the oldest that can read it, so older apps refuse only what they
+     * would show wrongly (3 with a big item, 2 with a smaller grid, else 1).
+     */
+    fun formatFor(layout: com.glimpsemedia.glimpselauncher.model.Layout?): Int = when {
+        layout == null -> FORMAT_USUAL
+        layout.bigItems.isNotEmpty() -> 3
+        (layout.columns to layout.rows) in com.glimpsemedia.glimpselauncher.model.TIGHT_GRIDS -> 2
+        else -> FORMAT_USUAL
+    }
+
     fun isAllowedName(name: String): Boolean =
         name in FILES || FOLDERS.any { f -> name.startsWith(f) && NotesJson.isPlainFileName(name.removePrefix(f)) }
 

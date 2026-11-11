@@ -434,6 +434,46 @@ fun FolderPreview(apps: List<AppInfo>) {
 }
 
 /**
+ * A big folder: its apps as small icons that open with one tap (2 × 2 up to four, 3 × 3 up to nine; past that the
+ * last cell says how many more and opens the folder). [tint] is the folder colour of the folder-icon look, else the
+ * panel is the usual see-through white. [extra] draws over it (the badge).
+ */
+@Composable
+fun BigFolderPanel(apps: List<AppInfo>, tint: androidx.compose.ui.graphics.Color?, onLaunch: (AppInfo) -> Unit, onOpen: () -> Unit, extra: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {}) {
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        Modifier.fillMaxSize().clip(RoundedCornerShape(22.dp))
+            .background(tint?.copy(alpha = 0.85f) ?: androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)),
+    ) {
+    // 3 × 3 only when every small icon can still be easy to touch.
+    val cells = com.glimpsemedia.glimpselauncher.model.bigFolderCells(apps.size, minOf(maxWidth, maxHeight).value)
+    val shown = apps.take(cells.shown)
+    Box(Modifier.fillMaxSize().padding(8.dp)) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (r in 0 until cells.grid) {
+                androidx.compose.foundation.layout.Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (c in 0 until cells.grid) {
+                        val i = r * cells.grid + c
+                        val app = shown.getOrNull(i)
+                        val cell = Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(12.dp))
+                        when {
+                            app != null -> Box(cell.clickable(onClickLabel = "Open ${app.label}") { onLaunch(app) }
+                                .semantics { contentDescription = app.label }) { AppIcon(app, null) }
+                            i == cells.shown && cells.more > 0 -> Box(
+                                cell.background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f)).clickable(onClickLabel = "Open the folder", onClick = onOpen),
+                                contentAlignment = Alignment.Center,
+                            ) { Text("+${cells.more}", color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.SemiBold, fontSize = 18.sp) }
+                            else -> Box(cell)
+                        }
+                    }
+                }
+            }
+        }
+        extra()
+    }
+    }
+}
+
+/**
  * Keeps clear of the top bar and the camera cutout, even in full screen when the bar is hidden: without this, the
  * clock and the first row slide up under the camera hole.
  */

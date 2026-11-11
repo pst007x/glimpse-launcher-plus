@@ -43,6 +43,7 @@ object LayoutJson {
             .put("colors", colors).put("see", see).put("icons", icons).put("iconSee", iconSee).put("tags", tags).put("cols", layout.columns).put("rows", layout.rows)
             .put("folderColors", JSONObject().also { o -> layout.folderColors.forEach { (k, v) -> o.put(k, v) } })
             .put("folderBadges", JSONObject().also { o -> layout.folderBadges.forEach { (k, v) -> o.put(k, v) } })
+            .put("big", JSONArray(layout.bigItems.sorted()))
             .put("tileShade", JSONObject().also { o -> layout.tileShades.forEach { (k, v) -> o.put(k, v) } })
             .put("texts", JSONObject().also { o -> layout.textColors.forEach { (k, v) -> o.put(k, v) } })
             .put("textShade", JSONObject().also { o -> layout.textShades.forEach { (k, v) -> o.put(k, v) } })
@@ -88,7 +89,10 @@ object LayoutJson {
             // Badges with a name this version does not know are left out.
             val badgeNames = TextIcon.entries.map { it.name }.toSet().let { names -> names + names.map { COLOUR_BADGE + it } }
             val folderBadges = root.optJSONObject("folderBadges")?.let { o -> o.keys().asSequence().associateWith { o.optString(it) } }.orEmpty().filterValues { it in badgeNames }
-            Layout(pages, dock, colors, see, icons, iconSee, tags, cols, hold, shades("tileShade"), shades("iconShade"), dl, texts, shades("textShade"), rows, folderColors, folderBadges)
+            // The big items: a layout from before them has none; a damaged list is put right, never trusted.
+            val big = root.optJSONArray("big")?.let { a -> (0 until a.length()).mapNotNull { a.opt(it) as? String }.toSet() }.orEmpty()
+            Layout(pages, dock, colors, see, icons, iconSee, tags, cols, hold, shades("tileShade"), shades("iconShade"), dl, texts, shades("textShade"), rows, folderColors, folderBadges, big)
+                .withBigRepaired()
         }
     } catch (_: Exception) {
         null

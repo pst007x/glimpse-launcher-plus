@@ -252,3 +252,41 @@ fun exifTurn(orientation: Int): Pair<Int, Boolean> = when (orientation) {
     2 -> 0 to true; 3 -> 180 to false; 4 -> 180 to true; 5 -> 90 to true
     6 -> 90 to false; 7 -> 270 to true; 8 -> 270 to false; else -> 0 to false
 }
+
+// ---- Import icon packs: packs found by their files, not by a signal ----
+
+/** The apps found holding an appfilter that the list does not have yet, A to Z by package (never Glimpse Colour). */
+fun newlyFound(candidates: List<String>, listed: Set<String>): List<String> =
+    candidates.filter { it != GLIMPSE_COLOUR && it !in listed }.distinct().sorted()
+
+/** The imported packs to add to the list: still installed, and not already found by their signal. */
+fun importedStillThere(imported: List<String>, listed: Set<String>, isInstalled: (String) -> Boolean): List<String> =
+    imported.filter { it !in listed && isInstalled(it) }
+
+private val PACKAGE_NAME = Regex("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+$")
+
+fun encodeImported(list: List<String>): String = list.joinToString("\n")
+
+/** The imported packs as stored; anything that is not a package name is dropped. */
+fun decodeImported(text: String?): List<String> =
+    text.orEmpty().split('\n').map { it.trim() }.filter { PACKAGE_NAME.matches(it) }.distinct()
+
+/** What Import says when it is done, with the names of the packs it found. */
+fun importMessage(found: List<String>): String = when (found.size) {
+    0 -> "No more icon packs found"
+    1 -> "Found 1 more icon pack: ${found[0]}"
+    else -> "Found ${found.size} more icon packs: ${found.joinToString(", ")}"
+}
+
+// ---- Apply the pack to every icon ----
+
+/** The button, shown only while [changed] icons have been changed one by one. */
+fun applyAllLabel(changed: Int): String? = if (changed <= 0) null else "Apply the pack to every icon ($changed changed one by one)"
+
+/** The question before clearing [changed] single choices; [pack] is the chosen pack's name, null for None. */
+fun applyAllWarning(changed: Int, pack: String?): String {
+    val what = if (changed == 1) "the icon you changed one by one (and any picture you chose for it)"
+        else "the $changed icons you changed one by one (and any pictures you chose for them)"
+    val result = if (pack == null) "every icon is the app's own" else "every icon comes from $pack"
+    return "This clears $what, so $result. This can't be undone."
+}

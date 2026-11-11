@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.glimpsemedia.glimpselauncher.data.PackInfo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Settings › Tiles and icons › Icon pack: the chosen pack (or None) and a Choose button opening the list. */
@@ -39,7 +40,9 @@ import kotlinx.coroutines.withContext
 fun IconPackRow(label: String, chosen: String, onChoose: (String) -> Unit) {
     val packs = LocalIconStore.current?.packs
     var open by remember { mutableStateOf(false) }
-    val installed by produceState<List<PackInfo>?>(null, open) { value = withContext(Dispatchers.IO) { packs?.installed().orEmpty() } }
+    // Import icon packs adds to the list: the list is read again after it.
+    var listVersion by remember { mutableStateOf(0) }
+    val installed by produceState<List<PackInfo>?>(null, open, listVersion) { value = withContext(Dispatchers.IO) { packs?.installed().orEmpty() } }
     val store = LocalIconStore.current
     val savedCopies by produceState(false, chosen, installed) { value = withContext(Dispatchers.IO) { store?.usingSavedCopies() == true } }
     val name = when {
@@ -51,14 +54,28 @@ fun IconPackRow(label: String, chosen: String, onChoose: (String) -> Unit) {
     NameAndButton(start = {
         Text(name, color = LocalMenu.current.text, fontSize = 18.sp, modifier = Modifier.weight(1f))
     }) { BigButton("Choose", { open = true }) }
-    if (open) IconPackChooser(chosen, installed.orEmpty(), onPick = { onChoose(it); open = false }, onClose = { open = false })
+    // Apply the pack to every icon: only while some icons were changed one by one.
+    val changed by produceState(0, store?.version) { value = store?.singleChoiceCount() ?: 0 }
+    var confirmAll by remember { mutableStateOf(false) }
+    com.glimpsemedia.glimpselauncher.model.applyAllLabel(changed)?.let { label ->
+        BigButton(label, { confirmAll = true }, Modifier.fillMaxWidth())
+    }
+    if (confirmAll) MenuDialog("Apply to every icon", { confirmAll = false }) {
+        CardNote(com.glimpsemedia.glimpselauncher.model.applyAllWarning(changed, if (chosen.isEmpty()) null else name))
+        // The dialog's own Close is the way out.
+        BigButton("Apply to every icon", { store?.clearAllChoices(); confirmAll = false }, Modifier.fillMaxWidth(), primary = true)
+    }
+    if (open) IconPackChooser(chosen, installed.orEmpty(), onPick = { onChoose(it); open = false }, onClose = { open = false }, onImported = { listVersion++ })
 }
 
 /** The list of packs to choose from: None first, then every installed pack with its icon, A to Z. */
 @Composable
-fun IconPackChooser(chosen: String, installed: List<PackInfo>, onPick: (String) -> Unit, onClose: () -> Unit) {
+fun IconPackChooser(chosen: String, installed: List<PackInfo>, onPick: (String) -> Unit, onClose: () -> Unit, onImported: () -> Unit = {}) {
     val context = LocalContext.current
     val packs = LocalIconStore.current?.packs
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var importing by remember { mutableStateOf(false) }
+    var importNote by remember { mutableStateOf<String?>(null) }
     MenuDialog("Icon pack", onClose) {
         PackLine("None", null, chosen.isEmpty()) { onPick("") }
         for (p in installed) {
@@ -67,6 +84,19 @@ fun IconPackChooser(chosen: String, installed: List<PackInfo>, onPick: (String) 
             }
             PackLine(p.label, icon, chosen == p.pkg) { onPick(p.pkg) }
         }
+        // Packs that do not announce themselves the usual way are found by their files.
+        CardNote(importNote ?: "Downloaded an icon pack that is not listed? Import looks through your apps for it.", strong = importNote != null)
+        BigButton(if (importing) "Looking through your apps…" else "Import icon packs", {
+            if (!importing && packs != null) {
+                importing = true
+                scope.launch {
+                    val found = withContext(Dispatchers.IO) { packs.importPacks() }
+                    importNote = com.glimpsemedia.glimpselauncher.model.importMessage(found)
+                    importing = false
+                    if (found.isNotEmpty()) onImported()
+                }
+            }
+        }, Modifier.fillMaxWidth())
         if (com.glimpsemedia.glimpselauncher.model.showFindPacks(installed.map { it.pkg })) {
             CardNote("No other icon packs are installed. Icon packs are free or paid apps from the Play Store.")
             BigButton("Find icon packs", {

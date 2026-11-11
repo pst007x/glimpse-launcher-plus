@@ -91,9 +91,10 @@ class BackupTest {
     }
 
     @Test fun newerFormatIsTooNew() {
-        assertEquals(BackupRead.TooNew, Backup.read(ByteArrayInputStream(zip("manifest.json" to manifestJson(format = 3), "settings.json" to emptySettings)), staging()))
-        // Format 2 (a backup with a smaller grid) is read by this app.
+        assertEquals(BackupRead.TooNew, Backup.read(ByteArrayInputStream(zip("manifest.json" to manifestJson(format = 4), "settings.json" to emptySettings)), staging()))
+        // Format 2 (a backup with a smaller grid) and 3 (big items) are read by this app.
         assertTrue(Backup.read(ByteArrayInputStream(zip("manifest.json" to manifestJson(format = 2), "settings.json" to emptySettings)), staging()) is BackupRead.Ok)
+        assertTrue(Backup.read(ByteArrayInputStream(zip("manifest.json" to manifestJson(format = 3), "settings.json" to emptySettings)), staging()) is BackupRead.Ok)
     }
 
     @Test fun unsafeNamesAreIgnored() {

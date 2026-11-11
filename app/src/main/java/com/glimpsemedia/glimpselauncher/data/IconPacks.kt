@@ -22,7 +22,15 @@ data class PackInfo(val pkg: String, val label: String)
 val PACK_ACTIONS = listOf(
     "org.adw.launcher.THEMES", "com.novalauncher.THEME", "com.teslacoilsw.launcher.THEME", "com.anddoes.launcher.THEME",
     "com.gau.go.launcherex.theme", "org.adw.ActivityStarter.THEMES",
+    // Newer launchers' own signals.
+    "ch.deletescape.lawnchair.ICONPACK", "net.oneplus.launcher.icons.ACTION_PICK_ICON", "com.dlto.atom.launcher.THEME",
 )
+
+/** Where Import icon packs keeps the packs it found (in the settings, so a backup keeps them). */
+const val IMPORTED_KEY = "importedPacks"
+
+/** Packs that announce themselves with a category on their main activity instead. */
+val PACK_CATEGORIES = listOf("com.fede.launcher.THEME_ICONPACK", "com.anddoes.launcher.THEME", "com.teslacoilsw.launcher.THEME")
 
 /**
  * Finding and reading icon packs: which are installed, their appfilter (which drawable each app gets, and the rules
@@ -37,11 +45,48 @@ class IconPacks(context: Context) {
     private val seen = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     /** Glimpse Colour (built in) first, then every installed pack, A to Z by name. */
-    fun installed(): List<PackInfo> = listOf(PackInfo(GLIMPSE_COLOUR, "Glimpse Colour (built in)")) + PACK_ACTIONS.flatMap { a ->
-        try { pm.queryIntentActivities(Intent(a), 0) } catch (_: Exception) { emptyList() }
-    }.map { it.activityInfo.packageName }.distinct().mapNotNull { p ->
-        try { PackInfo(p, pm.getApplicationInfo(p, 0).loadLabel(pm).toString()) } catch (_: Exception) { null }
-    }.sortedBy { it.label.lowercase() }
+    fun installed(): List<PackInfo> {
+        val signalled = signalledPacks()
+        val all = signalled + com.glimpsemedia.glimpselauncher.model.importedStillThere(imported(), signalled.toSet(), ::isInstalled)
+        return listOf(PackInfo(GLIMPSE_COLOUR, "Glimpse Colour (built in)")) + all.distinct().mapNotNull(::info).sortedBy { it.label.lowercase() }
+    }
+
+    private fun info(p: String): PackInfo? = try { PackInfo(p, pm.getApplicationInfo(p, 0).loadLabel(pm).toString()) } catch (_: Exception) { null }
+
+    /** The packs that announce themselves with one of the usual signals. */
+    private fun signalledPacks(): List<String> {
+        fun q(i: Intent) = try { pm.queryIntentActivities(i, 0) } catch (_: Exception) { emptyList() }
+        val found = PACK_ACTIONS.flatMap { q(Intent(it)) } + PACK_CATEGORIES.flatMap { q(Intent(Intent.ACTION_MAIN).addCategory(it)) }
+        return found.map { it.activityInfo.packageName }.distinct()
+    }
+
+    private val prefs get() = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private fun imported(): List<String> = com.glimpsemedia.glimpselauncher.model.decodeImported(prefs.getString(IMPORTED_KEY, null))
+
+    /**
+     * Import icon packs: looks through every app with an icon in All apps for the appfilter every icon pack carries,
+     * and keeps those the usual signals missed in the list. Slow (it opens each app's files): call off the main thread.
+     * Returns the names of the packs it found.
+     */
+    fun importPacks(): List<String> {
+        val launchable = try {
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo.packageName }
+        } catch (_: Exception) { emptyList() }
+        val listed = (signalledPacks() + imported()).toSet() + app.packageName
+        val found = com.glimpsemedia.glimpselauncher.model.newlyFound(launchable, listed).filter(::hasAppFilter)
+        if (found.isNotEmpty()) {
+            val keep = (imported().filter(::isInstalled) + found).distinct()
+            prefs.edit().putString(IMPORTED_KEY, com.glimpsemedia.glimpselauncher.model.encodeImported(keep)).apply()
+        }
+        return found.mapNotNull(::info).map { it.label }
+    }
+
+    /** Whether [pkg] carries an appfilter (res/xml or assets), read without keeping its files open. */
+    @Suppress("DiscouragedApi")
+    private fun hasAppFilter(pkg: String): Boolean = try {
+        val r = pm.getResourcesForApplication(pkg)
+        r.getIdentifier("appfilter", "xml", pkg) != 0 || try { r.assets.open("appfilter.xml").close(); true } catch (_: java.io.IOException) { false }
+    } catch (_: Exception) { false }
 
     fun isInstalled(pkg: String): Boolean = pkg == GLIMPSE_COLOUR || try { pm.getPackageInfo(pkg, 0); true } catch (_: PackageManager.NameNotFoundException) { false }
 

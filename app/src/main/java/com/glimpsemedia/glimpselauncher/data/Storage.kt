@@ -127,6 +127,8 @@ data class Settings(
     val slotShape: Int = SHAPE_DEFAULT,
     /** When the last backup was saved (0: never); not itself backed up or restored. */
     val lastBackupMillis: Long = 0,
+    /** Screen 2, 3, … may have their own pictures (kept when off); screen 1 and the rest show the phone's wallpaper. */
+    val screenWallpapers: Boolean = false,
 )
 
 /** Text mode's size as stored (once five steps, 0..4) as one of the three sizes: Small 1, Medium 2, Large 3. */
@@ -240,6 +242,7 @@ class SettingsStore(context: Context) {
         tileShape = shapeFromStored(prefs.getInt("tileShape", 0)),
         slotShape = shapeFromStored(prefs.getInt("slotShape", 0)),
         lastBackupMillis = prefs.getLong("lastBackupMillis", 0L),
+        screenWallpapers = prefs.getBoolean("screenWallpapers", false),
     )
 
     fun save(s: Settings) {
@@ -260,7 +263,7 @@ class SettingsStore(context: Context) {
             .putInt("tileShade", s.tileShade).putInt("iconShade", s.iconShade).putInt("barShade", s.barShade)
             .putInt("clockShade", s.clockShade).putInt("clockBackShade", s.clockBackShade).putInt("highlightShade", s.highlightShade)
             .putBoolean("textMode", s.textMode).putBoolean("textClock", s.textClock).putBoolean("textListRight", s.textListRight)
-            .putInt("textStep", s.textStep).putInt("tileNameStep", s.tileNameStep).putInt("tileIconStep", s.tileIconStep).putInt("menuTextStep", s.menuTextStep).putBoolean("quickUnlock", s.quickUnlock).putInt("folderStyle", s.folderStyle).putInt("folderIcon", s.folderIcon).putString("iconPack", s.iconPack).putInt("folderColor", s.folderColor).putInt("folderShade", s.folderShade).putBoolean("showTiles", s.showTiles).putInt("iconShape", s.iconShape).putInt("tileShape", s.tileShape).putInt("slotShape", s.slotShape).putLong("lastBackupMillis", s.lastBackupMillis).putBoolean("showBarText", s.showBarText)
+            .putInt("textStep", s.textStep).putInt("tileNameStep", s.tileNameStep).putInt("tileIconStep", s.tileIconStep).putInt("menuTextStep", s.menuTextStep).putBoolean("quickUnlock", s.quickUnlock).putInt("folderStyle", s.folderStyle).putInt("folderIcon", s.folderIcon).putString("iconPack", s.iconPack).putInt("folderColor", s.folderColor).putInt("folderShade", s.folderShade).putBoolean("showTiles", s.showTiles).putInt("iconShape", s.iconShape).putInt("tileShape", s.tileShape).putInt("slotShape", s.slotShape).putLong("lastBackupMillis", s.lastBackupMillis).putBoolean("showBarText", s.showBarText).putBoolean("screenWallpapers", s.screenWallpapers)
             .putInt("textClockSize", s.textClockSize).putBoolean("bugLog", s.bugLog).putBoolean("showBar", s.showBar)
             .putInt("barSlots", s.barSlots).putInt("textClockAlign", s.textClockAlign)
             .putInt("tileTextColor", s.tileTextColor).putInt("tileTextShade", s.tileTextShade)

@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import com.glimpsemedia.glimpselauncher.data.AppInfo
 import com.glimpsemedia.glimpselauncher.data.Settings
 import com.glimpsemedia.glimpselauncher.model.Layout
+import com.glimpsemedia.glimpselauncher.model.withBigRepaired
 import com.glimpsemedia.glimpselauncher.model.Notes
 import com.glimpsemedia.glimpselauncher.model.TextLayout
 import com.glimpsemedia.glimpselauncher.model.withApp
@@ -91,7 +92,7 @@ class LauncherState(
     var lastTouch by mutableLongStateOf(System.currentTimeMillis())
 
     /** Without the free layout every page is kept packed to the top. */
-    private fun fit(l: Layout) = (if (settings.customLayout) l else l.compacted()).withoutStrayColors().withoutStrayHolds().withoutEmptyExtraPages()
+    private fun fit(l: Layout) = l.withBigRepaired().let { if (settings.customLayout) it else it.compacted() }.withoutStrayColors().withoutStrayHolds().withoutEmptyExtraPages()
 
     fun change(new: Layout) {
         val fitted = fit(new)

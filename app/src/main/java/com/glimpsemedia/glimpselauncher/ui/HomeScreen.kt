@@ -129,6 +129,15 @@ import com.glimpsemedia.glimpselauncher.model.Item
 import com.glimpsemedia.glimpselauncher.model.add
 import com.glimpsemedia.glimpselauncher.model.colorKey
 import com.glimpsemedia.glimpselauncher.model.wallpaperPlan
+import androidx.compose.foundation.layout.BoxScope
+import com.glimpsemedia.glimpselauncher.model.owners
+import com.glimpsemedia.glimpselauncher.model.ownerOf
+import com.glimpsemedia.glimpselauncher.model.freeBlock
+import com.glimpsemedia.glimpselauncher.model.moveBigToPage
+import com.glimpsemedia.glimpselauncher.model.moveBig
+import com.glimpsemedia.glimpselauncher.model.makeNormal
+import com.glimpsemedia.glimpselauncher.model.makeBig
+import com.glimpsemedia.glimpselauncher.model.BigResult
 import com.glimpsemedia.glimpselauncher.data.drawThemeWallpaper
 import com.glimpsemedia.glimpselauncher.data.currentThemeColours
 import com.glimpsemedia.glimpselauncher.data.look
@@ -410,9 +419,13 @@ fun HomeScreen(
     val hoverNow = if (drag.active) slotAt(currentHome, drag.pointer) else null
     LaunchedEffect(hoverNow, drag.active) {
         dwellSlot = null
-        val target = hoverNow?.let { state.layout.pages.getOrNull(currentHome)?.items?.getOrNull(it) }
-        val canMake = drag.item is Item.App && (target is Item.App || target is Item.Folder) &&
-            !(drag.fromPage == currentHome && drag.fromIndex == hoverNow)
+        // Over a big item's covered square, the big item is the one under the finger.
+        val hoverPage = state.layout.pages.getOrNull(currentHome)
+        val under = hoverNow?.let { hoverPage?.ownerOf(it, state.layout.bigItems) ?: it }
+        val target = under?.let { hoverPage?.items?.getOrNull(it) }
+        val draggingBig = drag.item?.let { it.colorKey in state.layout.bigItems } == true
+        val canMake = drag.item is Item.App && !draggingBig && (target is Item.App || target is Item.Folder) &&
+            !(drag.fromPage == currentHome && drag.fromIndex == under)
         if (hoverNow != null && canMake) {
             delay(700)
             dwellSlot = hoverNow
@@ -453,20 +466,36 @@ fun HomeScreen(
             dwellSlot = null
             return
         }
+        if (item.colorKey in base.bigItems) {
+            // A big item lands with the square that was held under the finger; what is there moves out of the way.
+            if (slot == null) {
+                toast("Let go over one of the squares")
+            } else {
+                val cols = base.columns
+                val col = (slot % cols - drag.grabCol).coerceIn(0, cols - 2)
+                val row = (slot / cols - drag.grabRow).coerceIn(0, base.rows - 2)
+                val moved = base.moveBig(from.first, from.second, page, row * cols + col)
+                if (moved == null) toast("A widget is in the way") else state.change(moved)
+            }
+            dwellSlot = null
+            return
+        }
+        // Over a big item's covered square, the big item is the one it is dropped on.
+        val onto = slot?.let { base.pages.getOrNull(page)?.ownerOf(it, base.bigItems) ?: it }
         if (state.settings.customLayout) {
             // Free layout: the icon lands exactly where it is let go; an occupied square swaps, or (held) makes a folder.
             if (slot == null) {
                 toast("Let go over one of the squares")
             } else {
                 val l = base
-                val result = (if (dwellSlot == slot) l.dropOnto(from.first, from.second, page, slot, newId, keepGaps = true) else null)
+                val result = (if (dwellSlot == slot && onto != null) l.dropOnto(from.first, from.second, page, onto, newId, keepGaps = true) else null)
                     ?: l.placeItem(from.first, from.second, page, slot)
                 if (result != null) state.change(result)
             }
         } else {
             val toIndex = slot ?: base.slotsPerPage
-            val folder = if (slot != null && dwellSlot == slot) {
-                base.dropOnto(from.first, from.second, page, slot, newId)
+            val folder = if (slot != null && onto != null && dwellSlot == slot) {
+                base.dropOnto(from.first, from.second, page, onto, newId)
             } else null
             if (folder != null) {
                 state.change(folder)
@@ -550,6 +579,8 @@ fun HomeScreen(
             awaitPointerEventScope { while (true) { awaitPointerEvent(PointerEventPass.Initial); state.touched() } }
         },
     ) {
+        // Screen 2, 3, …'s own pictures, behind everything; screen n is pager page pagerIndexOf(n - 1).
+        ScreenWallpaperLayer(on = !textMode && state.settings.screenWallpapers, pagerState) { n -> pagerIndexOf(n - 1) }
         Column(Modifier.fillMaxSize()) {
             HorizontalPager(
                 state = pagerState,
@@ -584,6 +615,7 @@ fun HomeScreen(
                         rows = layout.rows,
                         folderColors = layout.folderColors,
                         folderBadges = layout.folderBadges,
+                        bigItems = layout.bigItems,
                         showNames = state.settings.showTileNames,
                         items = (layout.pages.getOrNull(index) ?: Page()).items,
                         // A tile's own colours with its own darker/lighter change applied.
@@ -1127,12 +1159,25 @@ fun HomeScreen(
             } else if (item == null) itemMenu = null else {
                 val app = (item as? Item.App)?.let { apps[it.key] }
                 MenuDialog(title = app?.label ?: if (item is Item.Folder) item.name else if (item is Item.Emergency) "Emergency" else if (item is Item.Search) "Search" else "All apps", onClose = { itemMenu = null }) {
-                    if (ref.page > 0 && !layout.pages[ref.page - 1].isFull) {
-                        BigButton("Move to the previous screen", { state.change(layout.moveItem(ref.page, ref.index, ref.page - 1, 99)!!); itemMenu = null })
+                    val isBig = item.colorKey in layout.bigItems
+                    // A big item moves to a free 2 × 2 block on the other screen.
+                    fun roomOn(p: Int) = layout.pages.getOrNull(p)?.let { if (isBig) it.freeBlock() != null else !it.isFull } == true
+                    fun moveTo(p: Int) = state.change((if (isBig) layout.moveBigToPage(ref.page, ref.index, p) else layout.moveItem(ref.page, ref.index, p, 99))!!)
+                    if (ref.page > 0 && roomOn(ref.page - 1)) {
+                        BigButton("Move to the previous screen", { moveTo(ref.page - 1); itemMenu = null })
                     }
-                    if (ref.page < layout.pages.size - 1 && !layout.pages[ref.page + 1].isFull) {
-                        BigButton("Move to the next screen", { state.change(layout.moveItem(ref.page, ref.index, ref.page + 1, 99)!!); itemMenu = null })
+                    if (ref.page < layout.pages.size - 1 && roomOn(ref.page + 1)) {
+                        BigButton("Move to the next screen", { moveTo(ref.page + 1); itemMenu = null })
                     }
+                    if (isBig) BigButton("Make it normal", { state.change(layout.makeNormal(ref.page, ref.index)); itemMenu = null })
+                    else BigButton("Make it big", {
+                        when (val r = layout.makeBig(ref.page, ref.index)) {
+                            is BigResult.Done -> state.change(r.layout)
+                            BigResult.NoRoom -> toast("No room for a big icon here: a widget is in the way.")
+                            BigResult.NotAllowed -> Unit
+                        }
+                        itemMenu = null
+                    })
                     if (item is Item.Folder) {
                         BigButton("Open the folder", { openFolder = ref; itemMenu = null })
                         BigButton("Change the folder's name", { renameFolderFor = ref; itemMenu = null })
@@ -1235,6 +1280,8 @@ private fun PageGrid(
     /** Each folder's own colour for the folder-icon look. */
     folderColors: Map<String, Int> = emptyMap(),
     folderBadges: Map<String, String> = emptyMap(),
+    /** The items that take 2 × 2 squares, by colorKey. */
+    bigItems: Set<String> = emptySet(),
     showNames: Boolean,
     items: List<Item?>,
     tileColors: Map<String, Int>,
@@ -1284,6 +1331,73 @@ private fun PageGrid(
     val gap = if (tight) 8.dp else 12.dp
     val cellW = (maxWidth - 32.dp - gap * (columns - 1)) / columns
     val cellH = (maxHeight - 16.dp - gap * (rows - 1)) / rows
+    // Which square owns each square: a big item's four squares are drawn as one, over the grid (below).
+    val owned = remember(items, bigItems, columns, rows) { com.glimpsemedia.glimpselauncher.model.Page(items, columns, rows).owners(bigItems) }
+    fun isBig(slot: Int): Boolean {
+        val it = items.getOrNull(slot)
+        return it != null && com.glimpsemedia.glimpselauncher.model.canBeBig(it) && it.colorKey in bigItems && owned.count { o -> o == slot } == 4
+    }
+    fun holdOf(i: Item): (() -> Unit)? = i.holdKey?.let { holdActions[it] }?.let { a -> { onHoldAction(a) } }
+    // Holding then dragging moves the item; holding still for five seconds opens its menu instead.
+    fun gestures(item: Item, slot: Int, topLeft: () -> Offset, grab: ((Offset) -> Unit)?): Modifier = Modifier.pointerInput(item, slot) {
+        var holdJob: Job? = null
+        detectDragGesturesAfterLongPress(
+            onDragStart = { at ->
+                grab?.invoke(at)
+                latestDragStart(item, slot, topLeft() + at)
+                holdJob = scope.launch {
+                    delay(HOLD_MENU_MS)
+                    if (drag.moved < 24f) { latestDragEnd(false); latestHoldMenu(slot) }
+                }
+            },
+            onDrag = { change, amount -> change.consume(); latestDragMove(amount) },
+            onDragEnd = { holdJob?.cancel(); latestDragEnd(true) },
+            onDragCancel = { holdJob?.cancel(); latestDragEnd(false) },
+        )
+    }
+    /** What a square (or, with [big] sizes, a big item's four) shows. */
+    @Composable
+    fun TileFor(item: Item?, slot: Int, big: com.glimpsemedia.glimpselauncher.ui.GridSizes?) {
+        val app = (item as? Item.App)?.let { apps[it.key] }
+        val sizes = big ?: gridSizes(columns, rows)
+        val compact = big == null && columns > 2
+        val tightHere = big == null && tight
+        when {
+            item == null -> EmptySlot(unlocked, { onEmptyTap(slot) }, onEmptyLong)
+            app != null -> BigTile(app.label, { onLaunch(app) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], Badges.forPackage(app.component.packageName), iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { AppIcon(app, null) }
+            item is Item.Emergency -> BigTile("Emergency", onEmergency, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: EMERGENCY_RED, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:emergency") { EmergencyGlyph() } }
+            item is Item.AllApps -> BigTile("All apps", onAllApps, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:allapps") { AllAppsGlyph() } }
+            item is Item.Search -> BigTile("Search", onSearch, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:search") { SearchGlyph() } }
+            item is Item.Folder -> {
+                // The folder-icon look: a folder in its own colour (or the shared one), with no square behind it.
+                val asIcon = LocalFolderStyle.current == 1
+                val folderInk = folderColors[item.colorKey] ?: LocalFolderColor.current
+                val badge = folderBadges[item.colorKey]?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }?.takeIf { asIcon }
+                val colourBadge = folderBadges[item.colorKey]?.takeIf { asIcon && it.startsWith(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE) }
+                    ?.removePrefix(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE)?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }
+                BigTile(item.name, { onOpenFolder(slot) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], item.apps.sumOf { k -> apps[k]?.let { Badges.forPackage(it.component.packageName) } ?: 0 }, iconColors[item.colorKey] ?: 0, if (asIcon) 100 else iconTransparency[item.colorKey], compact = compact, tight = tightHere, sizes = sizes, showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0, spokenExtra = (badge ?: colourBadge)?.let { folderBadgeSpoken(it) }) {
+                    if (big != null) BigFolderPanel(item.apps.mapNotNull { apps[it] }, if (asIcon) Color(folderInk) else null, onLaunch, { onOpenFolder(slot) }) {
+                        badge?.let { Box(Modifier.align(Alignment.BottomEnd).size(52.dp)) { FolderBadge(it, Color(folderInk)) } }
+                        colourBadge?.let { Box(Modifier.align(Alignment.BottomEnd).size(40.dp)) { ColourFolderBadge(it) } }
+                    } else if (asIcon) Box {
+                        FolderPicture(LocalFolderIcon.current, Color(folderInk))
+                        badge?.let { FolderBadge(it, Color(folderInk)) }
+                        colourBadge?.let { ColourFolderBadge(it) }
+                    } else FolderPreview(item.apps.mapNotNull { apps[it] })
+                }
+            }
+            else -> Unit  // a widget is drawn over the grid below; a covered square shows nothing
+        }
+    }
+    @Composable
+    fun BoxScope.MenuDot(item: Item, slot: Int) {
+        val app = (item as? Item.App)?.let { apps[it.key] }
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(if (columns > 2) 2.dp else 6.dp).size(if (columns > 2) 30.dp else 48.dp).clip(CircleShape).background(LocalAccent.current)
+                .clickable(onClickLabel = "Menu") { onMenu(slot) },
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu for " + (app?.label ?: (item as? Item.Folder)?.name ?: if (item is Item.Search) "Search" else if (item is Item.Emergency) "Emergency" else "All apps"), tint = readableOn(LocalAccent.current), modifier = Modifier.size(if (columns > 2) 20.dp else 30.dp)) }
+    }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(gap),
@@ -1293,11 +1407,10 @@ private fun PageGrid(
                 for (col in 0 until columns) {
                     val slot = row * columns + col
                     val item = items.getOrNull(slot)
-                    val app = (item as? Item.App)?.let { apps[it.key] }
-                    var holdJob: Job? = null
-                    fun holdOf(i: Item): (() -> Unit)? = i.holdKey?.let { holdActions[it] }?.let { a -> { onHoldAction(a) } }
-                    val hovered = hoverSlot == slot
-                    val makingFolder = dwellSlot == slot
+                    // Under a big item: it is drawn over its four squares, below.
+                    val hidden = item == Item.Covered || isBig(slot)
+                    val hovered = hoverSlot == slot && !hidden
+                    val makingFolder = dwellSlot == slot && !hidden
                     val beingDragged = drag.active && drag.fromPage == pageIndex && drag.fromIndex == slot && item == drag.item
                     Box(
                         Modifier.weight(1f).fillMaxHeight()
@@ -1308,53 +1421,12 @@ private fun PageGrid(
                             )
                             .alpha(if (beingDragged) 0.3f else 1f)
                             .then(
-                                if (unlocked && item != null && item !is Item.Widget && item !is Item.Covered) Modifier.pointerInput(item, slot) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { at ->
-                                            latestDragStart(item, slot, (bounds[pageIndex * BOUNDS_STRIDE + slot]?.topLeft ?: Offset.Zero) + at)
-                                            // Holding still for five seconds opens the menu instead.
-                                            holdJob = scope.launch {
-                                                delay(HOLD_MENU_MS)
-                                                if (drag.moved < 24f) { latestDragEnd(false); latestHoldMenu(slot) }
-                                            }
-                                        },
-                                        onDrag = { change, amount -> change.consume(); latestDragMove(amount) },
-                                        onDragEnd = { holdJob?.cancel(); latestDragEnd(true) },
-                                        onDragCancel = { holdJob?.cancel(); latestDragEnd(false) },
-                                    )
-                                } else Modifier,
+                                if (unlocked && item != null && item !is Item.Widget && !hidden) gestures(item, slot, { bounds[pageIndex * BOUNDS_STRIDE + slot]?.topLeft ?: Offset.Zero }, null)
+                                else Modifier,
                             ),
                     ) {
-                        when {
-                            item == null -> EmptySlot(unlocked, { onEmptyTap(slot) }, onEmptyLong)
-                            app != null -> BigTile(app.label, { onLaunch(app) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], Badges.forPackage(app.component.packageName), iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { AppIcon(app, null) }
-                            item is Item.Emergency -> BigTile("Emergency", onEmergency, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: EMERGENCY_RED, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:emergency") { EmergencyGlyph() } }
-                            item is Item.AllApps -> BigTile("All apps", onAllApps, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:allapps") { AllAppsGlyph() } }
-                            item is Item.Search -> BigTile("Search", onSearch, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], 0, iconColors[item.colorKey] ?: 0, iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0) { BuiltInIcon("glimpse:search") { SearchGlyph() } }
-                            item is Item.Folder -> {
-                                // The folder-icon look: a folder in its own colour (or the shared one), with no square behind it.
-                                val asIcon = LocalFolderStyle.current == 1
-                                val folderInk = folderColors[item.colorKey] ?: LocalFolderColor.current
-                                val badge = folderBadges[item.colorKey]?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }?.takeIf { asIcon }
-                                val colourBadge = folderBadges[item.colorKey]?.takeIf { asIcon && it.startsWith(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE) }
-                                    ?.removePrefix(com.glimpsemedia.glimpselauncher.model.COLOUR_BADGE)?.let { n -> com.glimpsemedia.glimpselauncher.model.TextIcon.entries.firstOrNull { it.name == n } }
-                                BigTile(item.name, { onOpenFolder(slot) }, Modifier.fillMaxSize(), tileColors[item.colorKey] ?: 0, tileTransparency[item.colorKey], item.apps.sumOf { k -> apps[k]?.let { Badges.forPackage(it.component.packageName) } ?: 0 }, iconColors[item.colorKey] ?: 0, if (asIcon) 100 else iconTransparency[item.colorKey], compact = columns > 2, tight = tight, sizes = gridSizes(columns, rows), showName = showNames, holdMark = item.holdKey in holdMarks, onHold = holdOf(item), textColor = textColors[item.colorKey] ?: 0, spokenExtra = (badge ?: colourBadge)?.let { folderBadgeSpoken(it) }) {
-                                    if (asIcon) Box {
-                                        FolderPicture(LocalFolderIcon.current, Color(folderInk))
-                                        badge?.let { FolderBadge(it, Color(folderInk)) }
-                                        colourBadge?.let { ColourFolderBadge(it) }
-                                    } else FolderPreview(item.apps.mapNotNull { apps[it] })
-                                }
-                            }
-                            else -> Unit  // a widget is drawn over the grid below; a covered square shows nothing
-                        }
-                        if (unlocked && item != null && item !is Item.Widget && item !is Item.Covered) {
-                            Box(
-                                Modifier.align(Alignment.TopEnd).padding(if (columns > 2) 2.dp else 6.dp).size(if (columns > 2) 30.dp else 48.dp).clip(CircleShape).background(LocalAccent.current)
-                                    .clickable(onClickLabel = "Menu") { onMenu(slot) },
-                                contentAlignment = Alignment.Center,
-                            ) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu for " + (app?.label ?: (item as? Item.Folder)?.name ?: if (item is Item.Search) "Search" else "All apps"), tint = readableOn(LocalAccent.current), modifier = Modifier.size(if (columns > 2) 20.dp else 30.dp)) }
-                        }
+                        if (!hidden) TileFor(item, slot, null)
+                        if (unlocked && item != null && item !is Item.Widget && !hidden) MenuDot(item, slot)
                     }
                 }
             }
@@ -1410,6 +1482,44 @@ private fun PageGrid(
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Filled.MoreVert, contentDescription = "Menu for the widget", tint = readableOn(LocalAccent.current), modifier = Modifier.size(30.dp)) }
                 }
+            }
+        }
+    }
+    // Big items sit over their four squares, as widgets do.
+    items.forEachIndexed { slot, item ->
+        if (item != null && isBig(slot)) {
+            val col = slot % columns
+            val row = slot / columns
+            val w = cellW * 2 + gap
+            val h = cellH * 2 + gap
+            // The icon about twice the usual size; a big folder's panel takes all the room its name leaves.
+            val base = gridSizes(columns, rows)
+            val room = minOf(w - 24.dp, h - (base.nameSp * 3f).dp - 24.dp).value.coerceAtLeast(base.iconDp)
+            val icon = if (item is Item.Folder) room else minOf(room, base.iconDp * 2)
+            val sizes = GridSizes(base.nameSp * 1.15f, icon, if (item is Item.Folder) room + base.nameSp * 2f else minOf(room + base.nameSp * 2f, base.iconNoNameDp * 2))
+            val topLeft = remember { arrayOf(Offset.Zero) }
+            val cellPx = with(androidx.compose.ui.platform.LocalDensity.current) { (cellW + gap).toPx() }
+            val cellHpx = with(androidx.compose.ui.platform.LocalDensity.current) { (cellH + gap).toPx() }
+            val dragged = drag.active && drag.fromPage == pageIndex && drag.fromIndex == slot && drag.item == item
+            val block = listOf(slot, slot + 1, slot + columns, slot + columns + 1)
+            val shape = tileShapeOf(LocalTileShape.current, 28.dp)
+            Box(
+                Modifier.offset(x = 16.dp + (cellW + gap) * col, y = 8.dp + (cellH + gap) * row).size(w, h)
+                    .onGloballyPositioned { topLeft[0] = it.boundsInRoot().topLeft }
+                    .then(
+                        if (dwellSlot in block) Modifier.border(8.dp, LocalAccent.current, shape)
+                        else if (hoverSlot in block) Modifier.border(4.dp, LocalAccent.current, shape) else Modifier,
+                    )
+                    .alpha(if (dragged) 0.3f else 1f)
+                    .then(
+                        if (unlocked) gestures(item, slot, { topLeft[0] }) { at ->
+                            drag.grabCol = (at.x / cellPx).toInt().coerceIn(0, 1)
+                            drag.grabRow = (at.y / cellHpx).toInt().coerceIn(0, 1)
+                        } else Modifier,
+                    ),
+            ) {
+                TileFor(item, slot, sizes)
+                if (unlocked) MenuDot(item, slot)
             }
         }
     }
@@ -1888,6 +1998,12 @@ private fun SettingsScreen(
                     } else CardNote("Off: Search shows no web searches.")
                 }
                 "Change the wallpaper" -> BigButton(label, onWallpaper)
+                "A different wallpaper for each screen" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SwitchRow(label, s.screenWallpapers) { state.change(s.copy(screenWallpapers = it)) }
+                    CardNote("The wallpaper set with Change the wallpaper is the default: it shows on the home screen, the lock screen, and every screen without its own picture. Pictures for Screen 2 onwards show only on that screen, never on the lock screen.")
+                    if (s.screenWallpapers) ScreenWallpaperRows(state.layout.pages.size)
+                    else CardNote("Off: every screen shows the default wallpaper. Pictures chosen before are kept for when this is on again.")
+                }
                 "Full screen: hide the top bar" -> {
                     SwitchRow(label, s.fullScreen) { state.change(s.copy(fullScreen = it)) }
                     CardNote("Hides the bar with the time, battery and notifications. Swipe down from the top edge to see it for a moment.")

@@ -15,8 +15,8 @@ enum class RestoreResult { Done, NoRoom, Failed }
  * [recoverIfInterrupted] puts them back on the next start. A successful restore removes the safety copy.
  */
 class BackupStore(private val dir: File) {
-    private val files = listOf("layout.json", "textmode.json", "notes.json", "themes.json")
-    private val folders = listOf("notes", "wallpapers", "icons/picked")
+    private val files = listOf("layout.json", "textmode.json", "notes.json", "themes.json", "screens.json")
+    private val folders = listOf("notes", "wallpapers", "icons/picked", "screens")
     private val safe get() = File(dir, "before-restore")
     private val mark get() = File(safe, "in-progress")
 
@@ -30,10 +30,10 @@ class BackupStore(private val dir: File) {
         }
         val pin = (prefs["pinHash"] as? PrefValue.S)?.v?.isNotEmpty() == true
         // A smaller grid needs this app to read it: older apps would lose the screens, so they are told it is too new.
-        val tight = out["layout.json"]?.let { f -> runCatching { com.glimpsemedia.glimpselauncher.model.LayoutJson.decode(f.readText()) }.getOrNull() }
-            ?.let { (it.columns to it.rows) in com.glimpsemedia.glimpselauncher.model.TIGHT_GRIDS } == true
+        // Big items need 3 (older apps would show holes).
+        val layout = out["layout.json"]?.let { f -> runCatching { com.glimpsemedia.glimpselauncher.model.LayoutJson.decode(f.readText()) }.getOrNull() }
         val manifest = manifestBase.copy(
-            format = if (tight) Backup.FORMAT else Backup.FORMAT_USUAL,
+            format = Backup.formatFor(layout),
             notes = Backup.countIn(out["notes.json"], "notes"), themes = Backup.countIn(out["themes.json"], "themes"), pin = pin,
         )
         return BackupContents(manifest, Backup.settingsForBackup(prefs), out)

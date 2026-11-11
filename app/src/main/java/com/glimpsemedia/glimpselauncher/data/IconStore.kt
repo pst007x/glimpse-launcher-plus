@@ -159,6 +159,19 @@ class IconStore(context: Context) {
         version++
     }
 
+    /** How many icons have been changed one by one (apps and built-in tiles). */
+    fun singleChoiceCount(): Int = choices.size
+
+    /** Apply the pack to every icon: clears every single choice and its pictures and copies; every icon is redrawn. */
+    fun clearAllChoices() {
+        val old = choices
+        choices = emptyMap()
+        prefs.edit().putString(CHOICES_KEY, encodeIconChoices(choices)).apply()
+        for ((key, c) in old) com.glimpsemedia.glimpselauncher.model.filesToDropOnChoice(copyName(key), c, null).forEach { File(pickedDir, it).delete() }
+        memory.evictAll()
+        version++
+    }
+
     /** Re-reads the choices after a restore wrote the prefs file anew. */
     fun reload() { choices = parseIconChoices(prefs.getString(CHOICES_KEY, null)); memory.evictAll(); version++ }
 

@@ -134,6 +134,23 @@ class MainActivity : ComponentActivity() {
             saveTextLayout = { if (!restoring) textStore.save(it) },
         )
         state.savedThemes = themeStore.load()
+        screenWalls = com.glimpsemedia.glimpselauncher.ui.ScreenWallpaperControl(
+            store = com.glimpsemedia.glimpselauncher.data.ScreenWallpaperStore(filesDir),
+            scope = lifecycleScope,
+            resolver = contentResolver,
+            pick = { done ->
+                screenPictureDone = done
+                try { pickScreenPicture.launch(arrayOf("image/*")) } catch (_: Exception) {
+                    screenPictureDone = null; done(null); note("This phone has no way to pick a picture")
+                }
+            },
+            screenSize = ::screenSize,
+            showPositioner = { positioning.value = it },
+            canSave = { !restoring },
+            note = ::note,
+        )
+        val screenPicturesNow = screenWalls.pictures
+        lifecycleScope.launch(Dispatchers.IO) { synchronized(screenWalls.store) { screenWalls.store.removeUnusedIfSafe(screenPicturesNow) } }
         val themesNow = state.savedThemes
         lifecycleScope.launch(Dispatchers.IO) { synchronized(themeStore) { themeStore.removeUnusedWallpapersIfSafe(themesNow) } }
         // A photo being taken when the launcher was closed by the phone: carry on waiting for it.
@@ -176,6 +193,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.glimpsemedia.glimpselauncher.ui.LocalIconStore provides icons,
                     com.glimpsemedia.glimpselauncher.ui.LocalMenuTextScale provides com.glimpsemedia.glimpselauncher.ui.menuTextScale(s.menuTextStep),
+                    com.glimpsemedia.glimpselauncher.ui.LocalScreenWallpapers provides screenWalls,
                 ) {
                 HomeScreen(
                     state = state,
@@ -217,6 +235,7 @@ class MainActivity : ComponentActivity() {
                     onClearBugLog = ::clearBugLog,
                     onSystemSettings = { try { startActivity(Intent(Settings.ACTION_SETTINGS)) } catch (_: Exception) {} },
                 )
+                positioning.value?.let { com.glimpsemedia.glimpselauncher.ui.PicturePositioner(it) { positioning.value = null } }
             }
             }
         }
@@ -813,7 +832,35 @@ class MainActivity : ComponentActivity() {
 
     /** The system's file browser (not the photo picker), so Downloads and every other folder can be opened. */
     private val pickImage = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) askWhichScreen(uri)
+        if (uri != null) positionWallpaper(uri)
+    }
+
+    /** "Position the picture" while it is open (the default wallpaper, or a screen's own picture). */
+    private val positioning = androidx.compose.runtime.mutableStateOf<com.glimpsemedia.glimpselauncher.ui.PositionRequest?>(null)
+    private lateinit var screenWalls: com.glimpsemedia.glimpselauncher.ui.ScreenWallpaperControl
+    /** Waiting for a picture for a screen of its own (gone if the phone closed the launcher meanwhile). */
+    private var screenPictureDone: ((Uri?) -> Unit)? = null
+    private val pickScreenPicture = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        screenPictureDone.also { screenPictureDone = null }?.invoke(uri)
+    }
+
+    /** The whole screen in pixels, as wallpapers are made for it. */
+    private fun screenSize(): Pair<Int, Int> =
+        if (Build.VERSION.SDK_INT >= 30) windowManager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
+        else resources.displayMetrics.let { it.widthPixels to it.heightPixels }
+
+    /** Change the wallpaper: the picture is placed first, then the screen question, then it is set at exactly the screen size. */
+    private fun positionWallpaper(uri: Uri) {
+        lifecycleScope.launch {
+            val (sw, sh) = screenSize()
+            val picture = withContext(Dispatchers.IO) { com.glimpsemedia.glimpselauncher.data.PictureFiles.decodeUpright(contentResolver, uri, minOf(3072, 2 * maxOf(sw, sh))) }
+            if (picture == null) { Toast.makeText(this@MainActivity, "That picture could not be used", Toast.LENGTH_LONG).show(); return@launch }
+            positioning.value = com.glimpsemedia.glimpselauncher.ui.PositionRequest(
+                picture, sw, sh, com.glimpsemedia.glimpselauncher.model.PicturePlace(),
+                onUse = { place -> askWhichScreen { flags -> setWallpaper(picture, sw, sh, place, flags) } },
+                onCancel = {},
+            )
+        }
     }
 
     private fun openWallpaperChooser() {
@@ -823,8 +870,6 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "This phone has no way to pick a picture", Toast.LENGTH_LONG).show()
         }
     }
-
-    private fun askWhichScreen(uri: Uri) = askWhichScreen { flags -> setWallpaper(uri, flags) }
 
     /** "Use this picture for": the home screen, the lock screen or both; [apply] gets the wallpaper flags. */
     private fun askWhichScreen(apply: (Int) -> Unit) {
@@ -853,15 +898,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** A picture of the person's own: the launcher keeps a copy (so a saved theme can put it back), then sets it. */
-    private fun setWallpaper(uri: Uri, flags: Int) {
+    /**
+     * A picture of the person's own, placed: the launcher keeps a copy of the part shown, at exactly the screen size
+     * (so the phone cannot show it off centre, and a saved theme can put it back), then sets it.
+     */
+    private fun setWallpaper(picture: android.graphics.Bitmap, sw: Int, sh: Int, place: com.glimpsemedia.glimpselauncher.model.PicturePlace, flags: Int) {
         lifecycleScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 val copy = themeStore.newWallpaperFile()
                 try {
-                    contentResolver.openInputStream(uri)!!.use { input -> copy.outputStream().use { input.copyTo(it) } }
+                    val shown = com.glimpsemedia.glimpselauncher.data.PictureFiles.cut(picture, sw, sh, place)
+                    com.glimpsemedia.glimpselauncher.data.PictureFiles.writeJpeg(shown, copy)
                     applyWallpaper(SavedWallpaper.Picture(copy.name), flags).also { if (!it) copy.delete() }
                 } catch (_: Exception) {
+                    copy.delete()
+                    false
+                } catch (_: OutOfMemoryError) {
                     copy.delete()
                     false
                 }
@@ -885,8 +937,7 @@ class MainActivity : ComponentActivity() {
         val wm = WallpaperManager.getInstance(this)
         val id = if (!(wm.isWallpaperSupported && wm.isSetWallpaperAllowed)) 0 else when (w) {
             is SavedWallpaper.Drawn -> {
-                val bounds = if (Build.VERSION.SDK_INT >= 30) windowManager.maximumWindowMetrics.bounds.let { it.width() to it.height() }
-                else resources.displayMetrics.let { it.widthPixels to it.heightPixels }
+                val bounds = screenSize()
                 val bitmap = drawThemeWallpaper(wallpaperPlan(bounds.first, bounds.second, w.c1, w.c2, w.c3, w.c4, w.dark))
                 try { wm.setBitmap(bitmap, null, true, flags) } finally { bitmap.recycle() }
             }
