@@ -4,22 +4,25 @@ Choose big tiles or a dense grid, icons on cards or straight on your wallpaper, 
 
 WHAT YOU GET
 
-• Your grid. 2 × 4 big tiles or 4 × 4 compact ones a screen, or switch the tiles off for 4 × 5, 5 × 5 and 5 × 6. Switching keeps the order of your apps; folders and widgets come along.
+• Your grid. 2 × 4 big tiles or 4 × 4 compact ones, or tiles off for 4 × 5, 5 × 5 and 5 × 6; your apps, folders and widgets keep their order.
 • Your look. Tiles behind the icons on or off, a round, square or rounded square behind each icon, and name and icon sizes on simple sliders. Sizes fit each grid by themselves.
-• Text mode. Swap the tiles for one calm screen of app names, with a simple clock and mono folder icons. Your tile screens are kept unchanged for when you switch back. Text mode has its own widgets screen, and the Text mode switch widget swaps modes with one touch.
-• Notes, one swipe away. Swipe right for coloured note cards with tick-box lines, colour bands and pictures. Share a note, fold it to a summary, or keep the notes behind your PIN. Kept only on your phone.
+• Icon packs. Glimpse Colour, Glimpse's own colourful icons, is built in, and Nova-style icon packs work too. Change any single icon, even to a picture of your own; calendar icons show the date.
+• Big icons. Make any app, folder, All apps, Search or Emergency 2 × 2; a big folder shows its apps, ready to open.
+• Text mode. Swap the tiles for one calm screen of app names, with its own widgets screen; your tile screens wait unchanged. The Text mode switch widget swaps with one touch.
+• Notes, one swipe away. Coloured cards with tick-box lines and pictures, to share, fold or keep behind your PIN; kept only on your phone.
 • Quick gestures. Swipe down for your notifications, swipe up for All apps.
-• Hold actions. Give any tile a second job: hold it (while locked) to switch the torch, open a web page, call or text a number, open another app, or jump to a settings page such as Wi-Fi.
-• A padlock that means it. Hold it for three seconds (or one, with Quick unlock) to unlock and rearrange; tap to lock. Add a 4 to 8 digit PIN if you like: five wrong tries pause the pad for 30 seconds, and a forgotten PIN is reset with the phone's own screen lock.
+• Hold actions. Hold a tile (while locked) to switch the torch, open a web page, call or text, open another app, or jump to a settings page.
+• A padlock that means it. Hold it to unlock and rearrange; tap to lock. Add a 4 to 8 digit PIN if you like: wrong tries pause the pad, and a forgotten PIN is reset with the phone's own screen lock.
 • All apps, organised. Search as you type, tags with a filter, and, when unlocked, App info and Uninstall a hold away.
-• Folders. Group apps, add apps straight into a folder, and put them in any order.
+• Search. Find apps, settings and help as you type, file names in folders you choose, and your own web searches.
+• Folders. Group apps, put them in any order, and give a folder a small badge (music, games, work and more).
 • Widgets and free layout. Live widgets in sizes that fit, and icons in any square you choose.
-• Your colours. Eight ready-made themes (four light, four dark) with matching wallpapers drawn to fit your screen, or your own colours and transparency for the tiles, the icon squares, the names, the bottom bar, the clock and the highlight. Save your own themes, and give one tile or folder its own colours.
-• Clear Settings. Five groups, each setting on its own page with a short summary of what is set, and a search box that finds any setting by name.
+• Your colours. Eight ready-made themes with matching wallpapers, or your own colours and transparency for tiles, icon squares, names, the bar, the clock and the highlight. Save your own themes, give one tile its own colours, place any wallpaper picture yourself, and give each screen its own.
+• Clear Settings. Five groups, each setting on its own page with a short summary of what is set, a search box that finds any setting by name, and menu text you can make smaller or larger.
 • Clock, numbers and full screen. Three clock styles and sizes, waiting-notification counts on icons (optional), and a full-screen mode.
 • Backup and restore. Save your whole setup, notes and themes to one file, and put it back on this phone or a new one.
 • An Emergency button (optional). A countdown you can cancel, then one call to the number you chose.
-• Help when you need it. Report a bug or suggest a feature by email, with an optional bug log that stays on your phone until you send it.
+• Help when you need it. Report a bug or suggest a feature by email, with an optional bug log kept on your phone.
 
 WHAT PLUS ADDS
 

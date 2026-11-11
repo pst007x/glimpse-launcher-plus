@@ -13,6 +13,18 @@ Play edition, and both are built from the same code.
 Only names are read, on the phone. Plus never reads what is inside a file, never changes or deletes anything, and
 has no internet permission. Privacy policy: https://glimpse-media.com/glimpse/privacy.html
 
+## What's new
+
+- **1.0.18:** Screen wallpapers can be set up ahead: + Add another screen is always there, even for screens you have
+  not made yet. A screen shows its picture as soon as you make it.
+- **1.0.17:** Big icons: make any app, folder, All apps, Search or Emergency 2 × 2 (a big folder shows its apps,
+  ready to open). A different wallpaper for each screen, and place any wallpaper picture yourself (drag, pinch,
+  Centre). Import icon packs finds packs that are not listed; Apply the pack to every icon clears single changes.
+- **1.0.16:** Icon packs: Glimpse Colour (Glimpse's own colourful icons) is built in, and Nova-style packs work too.
+  Change any single icon, even to a picture; calendar icons show the date. Folder badges, and menu text size.
+
+Each version's full notes are on its [release page](https://github.com/pst007x/glimpse-launcher-plus/releases).
+
 ## Download
 
 The newest version, with install steps: https://glimpse-media.com/glimpse/plus
