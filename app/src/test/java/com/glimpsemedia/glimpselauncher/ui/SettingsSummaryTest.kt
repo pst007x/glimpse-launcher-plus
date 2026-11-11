@@ -73,4 +73,10 @@ class SettingsSummaryTest {
         val notEnabled = sectionSummary("search", facts(Settings(allFilesSearch = true)).copy(allFilesPermitted = false))
         assertEquals(if (com.glimpsemedia.glimpselauncher.BuildConfig.PLUS) "Apps, menus and help · all files (not enabled)" else "Apps, menus and help", notEnabled)
     }
+
+    @Test fun tagsPageSaysHowMany() {
+        assertEquals("No tags yet", sectionSummary("tags", facts(Settings())))
+        assertEquals("1 tag", sectionSummary("tags", facts(Settings()).copy(tagCount = 1)))
+        assertEquals("3 tags", sectionSummary("tags", facts(Settings()).copy(tagCount = 3)))
+    }
 }

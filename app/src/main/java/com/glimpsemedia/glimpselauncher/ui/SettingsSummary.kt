@@ -26,6 +26,8 @@ data class SummaryFacts(
     val allFilesPermitted: Boolean = true,
     /** The grid's rows, with [columns]. */
     val rows: Int = 4,
+    /** How many tags sort All apps. */
+    val tagCount: Int = 0,
 )
 
 /** The name of the theme the settings match: a ready-made one first, then a saved one; null when neither (custom). */
@@ -72,6 +74,7 @@ fun sectionSummary(sectionId: String, f: SummaryFacts): String {
             }
             "Apps, menus and help" + files + (if (s.searchEngines) "${DOT}web" else "")
         }
+        "tags" -> when (f.tagCount) { 0 -> "No tags yet"; 1 -> "1 tag"; else -> "${f.tagCount} tags" }
         "bar" -> "${s.barSlots} apps$DOT${if (s.showBar) "shown" else "hidden"} in icon view"
         "clock" -> if (!s.showClock) "Off in icon view" else {
             val style = when (s.clockStyle) { 1 -> "Side by side"; 2 -> "Round"; else -> "Digital" }

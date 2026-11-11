@@ -36,6 +36,9 @@ object SettingsMap {
             b("Apps in the bar", "Apps in the bar", "Add an app to the bottom bar"),
         )),
         SettingsSection("search", "Search", "search", searchSectionRows(com.glimpsemedia.glimpselauncher.BuildConfig.PLUS)),
+        SettingsSection("tags", "Tags", "tag", listOf(
+            b(null, "Manage tags"),
+        )),
         SettingsSection("clock", "Clock", "clock", listOf(
             b("Icon view", "Show the time on the first screen", "Show the date under the time", "Clock style", "Clock size", "A background behind the clock"),
             b("Text mode view", "Show the clock", "Size", "Position"),
@@ -97,7 +100,7 @@ object SettingsMap {
     )
 
     val groups: List<SettingsGroup> = listOf(
-        SettingsGroup("home", "Home screen", "grid", listOf("screens", "bar", "search", "clock", "text")),
+        SettingsGroup("home", "Home screen", "grid", listOf("screens", "bar", "search", "tags", "clock", "text")),
         SettingsGroup("colours", "Colours and themes", "palette", listOf("themes", "menus", "tiles", "barclock")),
         SettingsGroup("safety", "Safety and privacy", "shield", listOf("lock", "emergency", "badges")),
         SettingsGroup("setup", "Your setup", "box", listOf("backup", "reset", "sethome")),

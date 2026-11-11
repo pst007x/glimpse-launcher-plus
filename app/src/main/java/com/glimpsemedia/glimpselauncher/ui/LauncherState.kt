@@ -117,9 +117,9 @@ class LauncherState(
     /** The other fresh layout: every app A to Z, with the phone's own apps in the bottom bar. */
     var filledFor: (Map<String, AppInfo>) -> Layout = { layout }
 
-    fun resetLayout() = change(defaultFor(apps))
+    fun resetLayout() = change(layout.startedAgainAs(defaultFor(apps)))
 
-    fun resetLayoutFilled() = change(filledFor(apps))
+    fun resetLayoutFilled() = change(layout.startedAgainAs(filledFor(apps)))
 
     fun touched() {
         lastTouch = System.currentTimeMillis()

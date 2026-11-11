@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Search
@@ -130,6 +131,7 @@ fun iconFor(key: String): ImageVector = when (key) {
     "screens" -> Icons.Outlined.Apps
     "bar" -> Icons.Outlined.CallToAction
     "search" -> Icons.Outlined.Search
+    "tag" -> Icons.Outlined.Sell
     "clock" -> Icons.Outlined.Schedule
     "text" -> Icons.AutoMirrored.Outlined.Notes
     "themes" -> Icons.Outlined.AutoAwesome

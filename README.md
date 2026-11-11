@@ -15,6 +15,8 @@ has no internet permission. Privacy policy: https://glimpse-media.com/glimpse/pr
 
 ## What's new
 
+- **1.0.20:** Manage tags in Settings: make, rename, delete and reorder the tags that sort All apps. Start again
+  keeps your tags.
 - **1.0.19:** Screen change: slide, fade, zoom or stack between screens (the screen pictures follow). 20 more folder
   badges, each in mono and colour, now on the folder's front. Widget sizes picked across and down, and widgets keep
   their height when the grid changes. Bigger menu-dot touch, lighter note pictures, and smaller fixes.

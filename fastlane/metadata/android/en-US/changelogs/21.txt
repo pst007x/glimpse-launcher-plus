@@ -1,0 +1,1 @@
+Manage tags in Settings: make, rename, delete and reorder the tags that sort All apps (Settings › Home screen › Tags). All apps shows tags in your order. Start again now keeps your tags.

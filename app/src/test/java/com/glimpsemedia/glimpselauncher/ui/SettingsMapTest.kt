@@ -9,7 +9,7 @@ class SettingsMapTest {
         val inGroups = SettingsMap.groups.flatMap { it.sections }
         assertEquals(inGroups.size, inGroups.toSet().size)
         assertEquals(SettingsMap.sections.keys, inGroups.toSet())
-        assertEquals(18, inGroups.size)
+        assertEquals(19, inGroups.size)
     }
 
     @Test fun sectionsWithoutBlocksOpenElsewhere() {
@@ -102,7 +102,7 @@ class SettingsMapTest {
     }
 
     @Test fun searchPageInHomeGroupAfterBar() {
-        assertEquals(listOf("screens", "bar", "search", "clock", "text"), SettingsMap.groupOf("search").sections)
+        assertEquals(listOf("screens", "bar", "search", "tags", "clock", "text"), SettingsMap.groupOf("search").sections)
     }
 
     @Test fun allFilesRowOnlyInPlus() {
@@ -119,5 +119,11 @@ class SettingsMapTest {
         assertEquals(listOf("Change the wallpaper", "A different wallpaper for each screen", "Screen change", "Full screen: hide the top bar"),
             SettingsMap.sections.getValue("screens").blocks.first { it.heading == "Screen" }.rows)
         assertTrue(SettingsMap.search("screen change").any { it.label == "Screen change" })
+    }
+
+    @Test fun manageTagsHasItsOwnPageAndIsFoundBySearch() {
+        assertEquals(listOf("Manage tags"), SettingsMap.sections.getValue("tags").blocks.flatMap { it.rows })
+        assertEquals("home", SettingsMap.groupOf("tags").id)
+        assertTrue(SettingsMap.search("tags").any { it.section == "tags" })
     }
 }

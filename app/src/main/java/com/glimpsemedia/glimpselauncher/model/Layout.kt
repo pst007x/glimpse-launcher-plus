@@ -450,6 +450,22 @@ data class Layout(
     /** Deletes a tag; its apps stay where they are. */
     fun withoutTag(name: String): Layout = copy(tags = tags.filter { it.name != name })
 
+    /** Whether the tag [name] can move [by] places (−1 up, +1 down) in the list. */
+    fun canMoveTag(name: String, by: Int): Boolean {
+        val i = tags.indexOfFirst { it.name == name }
+        return i >= 0 && i + by in tags.indices
+    }
+
+    /** The tag [name] moved [by] places (−1 up, +1 down); the same layout at the ends or for a tag not there. */
+    fun withTagMoved(name: String, by: Int): Layout {
+        if (!canMoveTag(name, by)) return this
+        val i = tags.indexOfFirst { it.name == name }
+        return copy(tags = tags.toMutableList().apply { add(i + by, removeAt(i)) })
+    }
+
+    /** Start again: [fresh] screens and bar, keeping the tags (they sort All apps, not the screens). */
+    fun startedAgainAs(fresh: Layout): Layout = fresh.copy(tags = tags)
+
     /** Every page packed to the top: the layout when the free layout is off. */
     fun compacted(): Layout = copy(pages = pages.map { if (it.hasWidgets) it else it.packed() })
 

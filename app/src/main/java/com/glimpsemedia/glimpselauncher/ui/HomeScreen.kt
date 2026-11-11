@@ -80,6 +80,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -1752,40 +1754,10 @@ private fun AllAppsList(
         }
     }
     if (managingTags) {
-        var renaming by remember { mutableStateOf<String?>(null) }
-        var newName by remember { mutableStateOf("") }
         MenuDialog(title = "Tags", onClose = { managingTags = false }) {
-            for (tag in layout.tags) {
-                if (renaming == tag.name) {
-                    var text by remember(tag.name) { mutableStateOf(tag.name) }
-                    OutlinedTextField(value = text, onValueChange = { text = it.take(24) }, singleLine = true, label = { Text("New name") },
-                        textStyle = TextStyle(fontSize = 22.sp), colors = menuFieldColors(), modifier = Modifier.fillMaxWidth())
-                    BigButton("Save the name", {
-                        val renamed = layout.withTagRenamed(tag.name, text)
-                        if (renamed != layout) {
-                            onChange(renamed)
-                            if (filter == tag.name) onFilter(com.glimpsemedia.glimpselauncher.model.cleanTagName(text))
-                        }
-                        renaming = null
-                    }, primary = true)
-                } else {
-                    NameAndButton(start = {
-                        Text(tag.name, color = LocalMenu.current.text, fontSize = 20.sp, modifier = Modifier.weight(1f))
-                    }) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            BigButton("Rename", { renaming = tag.name }, fontSize = 16.sp)
-                            BigButton("Delete", {
-                                onChange(layout.withoutTag(tag.name))
-                                if (filter == tag.name) onFilter(null)
-                            }, fontSize = 16.sp)
-                        }
-                    }
-                }
-            }
-            Text("Deleting a tag never removes an app.", color = LocalMenu.current.dimText, fontSize = 16.sp)
-            OutlinedTextField(value = newName, onValueChange = { newName = it.take(24) }, singleLine = true, label = { Text("A new tag, such as Games") },
-                textStyle = TextStyle(fontSize = 22.sp), colors = menuFieldColors(), modifier = Modifier.fillMaxWidth())
-            BigButton("Add the tag", { onChange(layout.withNewTag(newName)); newName = "" }, primary = true)
+            TagManager(layout, onChange,
+                onRenamed = { from, to -> if (filter == from) onFilter(com.glimpsemedia.glimpselauncher.model.cleanTagName(to)) },
+                onDeleted = { name -> if (filter == name) onFilter(null) })
         }
     }
     heldApp?.let { app ->
@@ -1888,7 +1860,7 @@ private fun SettingsScreen(
         onDispose { lc.removeObserver(obs) }
     }
     val allFilesPermitted = search?.allFiles?.let { a -> remember(a.permissionVersion) { !a.available || a.hasPermission() } } ?: true
-    val facts = SummaryFacts(s, layout.columns, themeNameOf(s, state.savedThemes.list), state.isDefaultHome, versionName, badges = badgesOn, rows = layout.rows, allFilesPermitted = allFilesPermitted)
+    val facts = SummaryFacts(s, layout.columns, themeNameOf(s, state.savedThemes.list), state.isDefaultHome, versionName, badges = badgesOn, rows = layout.rows, allFilesPermitted = allFilesPermitted, tagCount = layout.tags.size)
     fun say(text: String) = android.widget.Toast.makeText(ctx, text, android.widget.Toast.LENGTH_LONG).show()
 
     /** A row of equal choice buttons under a small title. */
@@ -2042,6 +2014,7 @@ private fun SettingsScreen(
                         SearchEngineList(engines) { engines = it; search.store.saveEngines(it) }
                     } else CardNote("Off: Search shows no web searches.")
                 }
+                "Manage tags" -> TagManager(state.layout, { state.change(it) })
                 "Change the wallpaper" -> BigButton(label, onWallpaper)
                 "A different wallpaper for each screen" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SwitchRow(label, s.screenWallpapers) { state.change(s.copy(screenWallpapers = it)) }
@@ -2989,3 +2962,61 @@ fun Modifier.pageTurnLook(turn: com.glimpsemedia.glimpselauncher.model.PageTurn,
         scaleX = look.scale
         scaleY = look.scale
     }
+
+/**
+ * Making, renaming, deleting and ordering the tags that sort All apps (Settings › Manage tags, and Filter › Manage tags
+ * in All apps). The order here is the order of the tag filter.
+ */
+@Composable
+internal fun TagManager(
+    layout: Layout,
+    onChange: (Layout) -> Unit,
+    onRenamed: (from: String, to: String) -> Unit = { _, _ -> },
+    onDeleted: (String) -> Unit = {},
+) {
+    var renaming by remember { mutableStateOf<String?>(null) }
+    var newName by remember { mutableStateOf("") }
+    val menu = LocalMenu.current
+    // The keyboard goes once a tag is made, moved or deleted, so it does not cover the list.
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (layout.tags.isEmpty()) Text("There are no tags yet. Make one below, or hold an app in All apps and choose Tags.", color = menu.dimText, fontSize = 16.sp)
+        for (tag in layout.tags) {
+            if (renaming == tag.name) {
+                var text by remember(tag.name) { mutableStateOf(tag.name) }
+                OutlinedTextField(value = text, onValueChange = { text = it.take(24) }, singleLine = true, label = { Text("New name") },
+                    textStyle = TextStyle(fontSize = 22.sp), colors = menuFieldColors(), modifier = Modifier.fillMaxWidth())
+                BigButton("Save the name", {
+                    val renamed = layout.withTagRenamed(tag.name, text)
+                    if (renamed != layout) { onChange(renamed); onRenamed(tag.name, text) }
+                    renaming = null
+                }, primary = true)
+            } else {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(menu.background).padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val count = tag.apps.size
+                    Text(tag.name, color = menu.text, fontSize = 19.sp)
+                    Text(if (count == 1) "1 app" else "$count apps", color = menu.dimText, fontSize = 14.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        @Composable fun Move(icon: androidx.compose.ui.graphics.vector.ImageVector, what: String, by: Int) = Box(
+                            Modifier.size(44.dp).clip(RoundedCornerShape(12.dp))
+                                .background(if (layout.canMoveTag(tag.name, by)) menu.button else menu.button.copy(alpha = 0.35f))
+                                .then(if (layout.canMoveTag(tag.name, by)) Modifier.clickable(onClickLabel = what) { focus.clearFocus(); onChange(layout.withTagMoved(tag.name, by)) } else Modifier),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(icon, contentDescription = what, tint = menu.text.copy(alpha = if (layout.canMoveTag(tag.name, by)) 1f else 0.4f), modifier = Modifier.size(24.dp)) }
+                        Move(Icons.Filled.KeyboardArrowUp, "Move ${tag.name} up", -1)
+                        Move(Icons.Filled.KeyboardArrowDown, "Move ${tag.name} down", +1)
+                        BigButton("Rename", { renaming = tag.name }, Modifier.weight(1f), fontSize = 15.sp)
+                        BigButton("Delete", { focus.clearFocus(); onChange(layout.withoutTag(tag.name)); onDeleted(tag.name) }, Modifier.weight(1f), fontSize = 15.sp)
+                    }
+                }
+            }
+        }
+        Text("Deleting a tag never removes an app. Tags show in this order in All apps.", color = menu.dimText, fontSize = 16.sp)
+        OutlinedTextField(value = newName, onValueChange = { newName = it.take(24) }, singleLine = true, label = { Text("A new tag, such as Games") },
+            textStyle = TextStyle(fontSize = 22.sp), colors = menuFieldColors(), modifier = Modifier.fillMaxWidth())
+        BigButton("Make the tag", { focus.clearFocus(); onChange(layout.withNewTag(newName)); newName = "" }, primary = true)
+    }
+}
